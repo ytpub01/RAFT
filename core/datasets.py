@@ -134,6 +134,25 @@ class FlyingChairs(FlowDataset):
                 self.image_list += [ [images[2*i], images[2*i+1]] ]
 
 
+class AsphereWarp(FlowDataset):
+    def __init__(self, aug_params=None, split='train', root='datasets/asphere'):
+        super(AsphereWarp, self).__init__(aug_params)
+
+        ids = np.loadtxt(osp.join(root, f'{split}.txt'))
+        flows = [osp.join(root, 'warps', f'{id}.png') for id in ids]
+        sat_images = [osp.join(root, 'satimages', f'{id}.png') for id in ids]
+        snap_images =[osp.join(root, 'snapshots', f'{id}.png') for id in ids]
+        # meta = sorted(glob(osp.join(root, split, 'meta', '*.json')))
+
+        if split == 'test':
+            self.is_test = False
+
+        for i in range(len(flows)):
+            self.flow_list += flows
+            self.image_list += list(zip(sat_images, snap_images))
+
+
+
 class FlyingThings3D(FlowDataset):
     def __init__(self, aug_params=None, root='datasets/FlyingThings3D', dstype='frames_cleanpass'):
         super(FlyingThings3D, self).__init__(aug_params)
@@ -199,7 +218,11 @@ class HD1K(FlowDataset):
 def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
     """ Create the data loader for the corresponding trainign set """
 
-    if args.stage == 'chairs':
+    if args.stage == 'asphere':
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        train_dataset = AsphereWarp(aug_params, split='train')
+   
+    elif args.stage == 'chairs':
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
         train_dataset = FlyingChairs(aug_params, split='training')
     
