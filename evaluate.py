@@ -16,7 +16,7 @@ from utils import frame_utils
 
 from raft import RAFT
 from utils.utils import InputPadder, forward_interpolate
-
+import tqdm as tq
 
 @torch.no_grad()
 def create_sintel_submission(model, iters=32, warm_start=False, output_path='sintel_submission'):
@@ -101,7 +101,7 @@ def validate_sintel(model, iters=32):
         val_dataset = datasets.MpiSintel(split='training', dstype=dstype)
         epe_list = []
 
-        for val_id in range(len(val_dataset)):
+        for val_id in tq.trange(len(val_dataset), leave=False, desc=f"Validating {dstype}"):
             image1, image2, flow_gt, _ = val_dataset[val_id]
             image1 = image1[None].cuda()
             image2 = image2[None].cuda()
