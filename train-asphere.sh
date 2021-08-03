@@ -1,0 +1,13 @@
+python -u train.py \
+    --name raft-asphere \
+    --stage asphere \
+    --validation asphere \
+    --restore_ckpt checkpoints/raft-sintel.pth \
+    --gpus 0 1 \
+    --num_steps 100000 \
+    --batch_size 4 \
+    --lr 0.000125 \
+    --image_size 512 512 \
+    --wdecay 0.00001 \
+    --gamma=0.85 \
+    --num-workers 20

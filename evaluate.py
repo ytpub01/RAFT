@@ -93,6 +93,28 @@ def validate_chairs(model, iters=24):
 
 
 @torch.no_grad()
+def validate_asphere(model, iters=24, batch_size=6, num_workers=4):
+    """ Perform evaluation on the ASphere (test) split """
+    model.eval()
+    epe_list = []
+
+    val_dataset = datasets.AsphereWarp(split='validation')
+    val_loader = torch.data.DataLoader(val_dataset,
+                                       batch_size=batch_size, 
+                                       pin_memory=False, 
+                                       num_workers=num_workers)
+    for bimage1, bimage2, bflow_gt, _ in val_loader:
+        _, bflow_pr = model(bimage1.cuda(), bimage2.cuda(), iters=iters, test_mode=True)
+        breakpoint()
+        epe = torch.sum((bflow_pr.cpu() - bflow_gt)**2, dim=0).sqrt()
+        epe_list.append(epe.view(-1).numpy())
+
+    epe = np.mean(np.concatenate(epe_list))
+    print("Validation ASphere EPE: %f" % epe)
+    return {'asphere': epe}
+
+
+@torch.no_grad()
 def validate_sintel(model, iters=32):
     """ Peform validation using the Sintel (train) split """
     model.eval()

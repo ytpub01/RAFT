@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader
 from raft import RAFT
 import evaluate
 import datasets
+import tqdm as tq
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -144,7 +145,7 @@ def train(args):
     model.cuda()
     model.train()
 
-    if args.stage != 'chairs':
+    if args.freeze_bn:
         model.module.freeze_bn()
 
     train_loader = datasets.fetch_dataloader(args)
@@ -155,12 +156,11 @@ def train(args):
     logger = Logger(model, scheduler)
 
     VAL_FREQ = 5000
-    add_noise = True
 
     should_keep_training = True
     while should_keep_training:
 
-        for i_batch, data_blob in enumerate(train_loader):
+        for i_batch, data_blob in enumerate(tq.tqdm(train_loader, desc="training")):
             optimizer.zero_grad()
             image1, image2, flow, valid = [x.cuda() for x in data_blob]
 
@@ -194,6 +194,11 @@ def train(args):
                         results.update(evaluate.validate_sintel(model.module))
                     elif val_dataset == 'kitti':
                         results.update(evaluate.validate_kitti(model.module))
+                    elif val_dataset == 'asphere':
+                        results.update(evaluate.validate_asphere(model.module, 
+                                                                 batch_size=args.batch_size,
+                                                                 num_workers=args.num_workers))
+
 
                 logger.write_dict(results)
                 
@@ -217,10 +222,12 @@ def train(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', default='raft', help="name your experiment")
+    parser.add_argument('--freeze_bn', action='store_true', help="Prevent batch-normalization from updating during training") 
     parser.add_argument('--stage', help="determines which dataset to use for training") 
     parser.add_argument('--restore_ckpt', help="restore checkpoint")
     parser.add_argument('--small', action='store_true', help='use small model')
     parser.add_argument('--validation', type=str, nargs='+')
+    parser.add_argument('--num-workers', type=int, help="the number of workers to load data", default=os.cpu_count())
 
     parser.add_argument('--lr', type=float, default=0.00002)
     parser.add_argument('--num_steps', type=int, default=100000)
