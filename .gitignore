@@ -1,3 +1,5 @@
+runs/
+checkpoints/
 models.zip
 *.pyc
 *.egg-info
