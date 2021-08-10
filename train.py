@@ -96,12 +96,15 @@ class Logger:
         self.writer = None
 
     def _print_training_status(self):
-        metrics_data = [self.running_loss[k]/SUM_FREQ for k in sorted(self.running_loss.keys())]
-        training_str = "[{:6d}, {:10.7f}] ".format(self.total_steps+1, self.scheduler.get_last_lr()[0])
-        metrics_str = ("{:10.4f}, "*len(metrics_data)).format(*metrics_data)
+        #metrics_data = [self.running_loss[k]/SUM_FREQ for k in sorted(self.running_loss.keys())]
+        training_str = "[{:6d}, lr={:10.7f}] ".format(self.total_steps+1, self.scheduler.get_last_lr()[0])
+        metrics_str = ''
+        for k, v in self.running_loss.items():
+            metrics_str += f' {k}={v/SUM_FREQ:<10.4f}'
+        #metrics_str = ("{:10.4f}, "*len(metrics_data)).format(*metrics_data)
         
         # print the training status
-        print(training_str + metrics_str)
+        tq.tqdm.write(training_str + metrics_str)
 
         if self.writer is None:
             self.writer = SummaryWriter()
@@ -137,7 +140,7 @@ class Logger:
 def train(args):
 
     model = nn.DataParallel(RAFT(args), device_ids=args.gpus)
-    print("Parameter Count: %d" % count_parameters(model))
+    tq.tqdm.write("Parameter Count: %d" % count_parameters(model))
 
     if args.restore_ckpt is not None:
         model.load_state_dict(torch.load(args.restore_ckpt), strict=False)
@@ -151,6 +154,7 @@ def train(args):
     train_loader = datasets.fetch_dataloader(args)
     optimizer, scheduler = fetch_optimizer(args, model)
 
+    total_progress = tq.tqdm(desc='Total', total=args.num_steps)
     total_steps = 0
     scaler = GradScaler(enabled=args.mixed_precision)
     logger = Logger(model, scheduler)
@@ -160,7 +164,31 @@ def train(args):
     should_keep_training = True
     while should_keep_training:
 
-        for i_batch, data_blob in enumerate(tq.tqdm(train_loader, desc="training")):
+        for i_batch, data_blob in enumerate(tq.tqdm(train_loader, desc="training", leave=False)):
+            # Validation 
+            if total_steps % VAL_FREQ == 0:
+                PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
+                torch.save(model.state_dict(), PATH)
+
+                results = {}
+                for val_dataset in args.validation:
+                    if val_dataset == 'chairs':
+                        results.update(evaluate.validate_chairs(model.module))
+                    elif val_dataset == 'sintel':
+                        results.update(evaluate.validate_sintel(model.module))
+                    elif val_dataset == 'kitti':
+                        results.update(evaluate.validate_kitti(model.module))
+                    elif val_dataset == 'asphere':
+                        results.update(evaluate.validate_asphere(model.module))
+
+
+                logger.write_dict(results)
+                
+                model.train()
+                if args.stage != 'chairs':
+                    model.module.freeze_bn()
+
+            #Train Step
             optimizer.zero_grad()
             image1, image2, flow, valid = [x.cuda() for x in data_blob]
 
@@ -182,36 +210,15 @@ def train(args):
 
             logger.push(metrics)
 
-            if total_steps % VAL_FREQ == VAL_FREQ - 1:
-                PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
-                torch.save(model.state_dict(), PATH)
 
-                results = {}
-                for val_dataset in args.validation:
-                    if val_dataset == 'chairs':
-                        results.update(evaluate.validate_chairs(model.module))
-                    elif val_dataset == 'sintel':
-                        results.update(evaluate.validate_sintel(model.module))
-                    elif val_dataset == 'kitti':
-                        results.update(evaluate.validate_kitti(model.module))
-                    elif val_dataset == 'asphere':
-                        results.update(evaluate.validate_asphere(model.module, 
-                                                                 batch_size=args.batch_size,
-                                                                 num_workers=args.num_workers))
-
-
-                logger.write_dict(results)
-                
-                model.train()
-                if args.stage != 'chairs':
-                    model.module.freeze_bn()
             
             total_steps += 1
+            total_progress.update(1)
 
             if total_steps > args.num_steps:
                 should_keep_training = False
                 break
-
+    total_progress.close()
     logger.close()
     PATH = 'checkpoints/%s.pth' % args.name
     torch.save(model.state_dict(), PATH)

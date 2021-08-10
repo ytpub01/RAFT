@@ -73,10 +73,14 @@ class FlowDataset(data.Dataset):
             img2 = img2[..., :3]
 
         if self.augmentor is not None:
-            if self.sparse:
-                img1, img2, flow, valid = self.augmentor(img1, img2, flow, valid)
-            else:
-                img1, img2, flow = self.augmentor(img1, img2, flow)
+            try:
+                if self.sparse:
+                    img1, img2, flow, valid = self.augmentor(img1, img2, flow, valid)
+                else:
+                    img1, img2, flow = self.augmentor(img1, img2, flow)
+            except:
+                print("The image pair is", self.image_list[index][0], "and", self.image_list[index][1])
+                raise
 
         img1 = torch.from_numpy(img1).permute(2, 0, 1).float()
         img2 = torch.from_numpy(img2).permute(2, 0, 1).float()
@@ -135,7 +139,18 @@ class FlyingChairs(FlowDataset):
 
 
 class AsphereWarp(FlowDataset):
-    def __init__(self, aug_params=None, split='train', root='datasets/asphere'):
+    def __init__(self, aug_params=None, split='train', root='datasets/asphere', crop=None):
+        """Dataset for ASphere woarps
+
+        Args:
+            aug_params ([type], optional): Constructor arguments to Augmentor.
+            split (str, optional): Data split. Defaults to 'train'.
+            root (str, optional): Root folder of the dataset. Defaults to 'datasets/asphere'.
+            crop ([type], optional): The size to crop image to. Defaults to None.
+
+        NOTE:  The 'crop' argument is doen after standard augmentation because of my laziness. 
+        TODO: Fix augmentor to get rid of nonconfigurable/magic parameters and remove our 'crop' argument. 
+        """
         super(AsphereWarp, self).__init__(aug_params)
 
         ids = np.loadtxt(osp.join(root, f'{split}.txt'), dtype=str)
@@ -149,7 +164,22 @@ class AsphereWarp(FlowDataset):
     
         self.flow_list += flows
         self.image_list += list(zip(sat_images, snap_images))
+        self.crop = crop
 
+    def __getitem__(self, index):
+        img1, img2, flo, valid = super().__getitem__(index)
+        if self.crop:
+            # Center crop
+            i0 = (img1.shape[-2]-self.crop[-2])//2
+            j0 = (img1.shape[-1]-self.crop[-1])//2
+            i1 = i0 + self.crop[0]
+            j1 = j0 + self.crop[1]
+            img1 = img1[..., i0:i1, j0:j1]
+            img2 = img2[..., i0:i1, j0:j1]
+            flo = flo[..., i0:i1, j0:j1]
+            valid = valid[..., i0:i1, j0:j1]
+        return img1, img2, flo, valid
+            
 
 
 class FlyingThings3D(FlowDataset):

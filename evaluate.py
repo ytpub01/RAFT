@@ -7,6 +7,7 @@ import os
 import time
 import numpy as np
 import torch
+import torch.utils.data
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
@@ -93,24 +94,22 @@ def validate_chairs(model, iters=24):
 
 
 @torch.no_grad()
-def validate_asphere(model, iters=24, batch_size=6, num_workers=4):
+def validate_asphere(model, iters=24):
     """ Perform evaluation on the ASphere (test) split """
     model.eval()
     epe_list = []
 
-    val_dataset = datasets.AsphereWarp(split='validation')
-    val_loader = torch.data.DataLoader(val_dataset,
-                                       batch_size=batch_size, 
-                                       pin_memory=False, 
-                                       num_workers=num_workers)
-    for bimage1, bimage2, bflow_gt, _ in val_loader:
-        _, bflow_pr = model(bimage1.cuda(), bimage2.cuda(), iters=iters, test_mode=True)
-        breakpoint()
-        epe = torch.sum((bflow_pr.cpu() - bflow_gt)**2, dim=0).sqrt()
+    val_dataset = datasets.AsphereWarp(split='validation', crop=(1000,1000))
+    for i in tq.trange(len(val_dataset), desc="Validating"):
+        #TODO - mask out the valid flow vectors
+        image1, image2, flow_gt, _ = val_dataset[i]
+        _, flow_pr = model(image1[None].cuda(), image2[None].cuda(), iters=iters, test_mode=True)
+        epe = torch.sum((flow_pr[0].cpu() - flow_gt)**2, dim=0).sqrt()
         epe_list.append(epe.view(-1).numpy())
 
-    epe = np.mean(np.concatenate(epe_list))
-    print("Validation ASphere EPE: %f" % epe)
+    epes = np.concatenate(epe_list)
+    epe = np.mean(epes)
+    tq.tqdm.write(f"Validation ASphere EPE: {epe},  out of {len(epes)} measurments")
     return {'asphere': epe}
 
 

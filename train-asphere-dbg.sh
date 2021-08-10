@@ -1,4 +1,5 @@
-python -u train.py \
+# Need 0 workers to debug
+ipython --pdb train.py -- \
     --name raft-asphere \
     --stage asphere \
     --validation asphere \
@@ -9,4 +10,5 @@ python -u train.py \
     --image_size 512 512 \
     --wdecay 0.00001 \
     --gamma=0.85 \
-    --num-workers 25 | tee -a train.log
+    --num-workers 0 \
+    --mixed_precision 

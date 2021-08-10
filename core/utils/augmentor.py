@@ -47,6 +47,7 @@ class FlowAugmentor:
             image_stack = np.array(self.photo_aug(Image.fromarray(image_stack)), dtype=np.uint8)
             img1, img2 = np.split(image_stack, 2, axis=0)
 
+
         return img1, img2
 
     def eraser_transform(self, img1, img2, bounds=[50, 100]):
@@ -109,9 +110,9 @@ class FlowAugmentor:
         return img1, img2, flow
 
     def __call__(self, img1, img2, flow):
+        img1, img2, flow = self.spatial_transform(img1, img2, flow)
         img1, img2 = self.color_transform(img1, img2)
         img1, img2 = self.eraser_transform(img1, img2)
-        img1, img2, flow = self.spatial_transform(img1, img2, flow)
 
         img1 = np.ascontiguousarray(img1)
         img2 = np.ascontiguousarray(img2)
