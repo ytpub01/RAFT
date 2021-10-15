@@ -178,6 +178,8 @@ class AsphereWarp(FlowDataset):
             img2 = img2[..., i0:i1, j0:j1]
             flo = flo[..., i0:i1, j0:j1]
             valid = valid[..., i0:i1, j0:j1]
+            # Make sure that the U and V components of the flow are finite
+            valid = valid * (torch.isfinite(flo[..., 0, :, :]) & torch.isfinite(flo[...,1,:,:]))
         return img1, img2, flo, valid
             
 

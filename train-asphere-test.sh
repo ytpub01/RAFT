@@ -1,0 +1,13 @@
+python -u train.py \
+    --name raft-asphere-test \
+    --stage asphere \
+    --restore_ckpt resume-2.pth \
+    --validation asphere \
+    --gpus 0 1 \
+    --num_steps 100000 \
+    --batch_size 5 \
+    --lr 0.0004 \
+    --image_size 720 720 \
+    --wdecay 0.00001 \
+    --gamma=0.85 \
+    --num-workers 25 | tee -a train-test.log

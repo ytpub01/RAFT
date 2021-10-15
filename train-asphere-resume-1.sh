@@ -1,7 +1,7 @@
-# Need 0 workers to debug
-ipython --pdb train.py -- \
+python -u train.py \
     --name raft-asphere \
     --stage asphere \
+    --restore_ckpt first_error.pth \
     --validation asphere \
     --gpus 0 1 \
     --num_steps 100000 \
@@ -10,5 +10,4 @@ ipython --pdb train.py -- \
     --image_size 512 512 \
     --wdecay 0.00001 \
     --gamma=0.85 \
-    --num-workers 0 \
-    --mixed_precision 
+    --num-workers 25 | tee -a train.log

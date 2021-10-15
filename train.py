@@ -185,8 +185,8 @@ def train(args):
                 logger.write_dict(results)
                 
                 model.train()
-                if args.stage != 'chairs':
-                    model.module.freeze_bn()
+#                if args.stage != 'chairs':
+#                    model.module.freeze_bn()
 
             #Train Step
             optimizer.zero_grad()
@@ -200,15 +200,19 @@ def train(args):
             flow_predictions = model(image1, image2, iters=args.iters)            
 
             loss, metrics = sequence_loss(flow_predictions, flow, valid, args.gamma)
-            scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)                
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+            if torch.isnan(loss):
+                tq.tqdm.write("ERROR")
+                #breakpoint()
+            else:
+                scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)                
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
             
-            scaler.step(optimizer)
-            scheduler.step()
-            scaler.update()
+                scaler.step(optimizer)
+                scheduler.step()
+                scaler.update()
 
-            logger.push(metrics)
+                logger.push(metrics)
 
 
             
