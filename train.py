@@ -14,12 +14,11 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from raft import RAFT
 import evaluate
 import datasets
 import tqdm as tq
-from torch.utils.tensorboard import SummaryWriter
 
 try:
     from torch.cuda.amp import GradScaler
@@ -156,7 +155,6 @@ def train(args):
     total_steps = 0
     scaler = GradScaler(enabled=args.mixed_precision)
     logger = Logger(model, scheduler)
-    logger.writer = SummaryWriter()
 
     total_progress = tq.tqdm(desc='Total', total=args.num_steps)
     #optimizer.step() # must execute before scheduler
