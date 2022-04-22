@@ -14,13 +14,11 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from raft import RAFT
 import evaluate
 import datasets
 import tqdm as tq
-
-from torch.utils.tensorboard import SummaryWriter
 
 try:
     from torch.cuda.amp import GradScaler
