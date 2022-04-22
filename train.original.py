@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 from raft import RAFT
 import evaluate
 import datasets
-import tqdm as tq
+
 from torch.utils.tensorboard import SummaryWriter
 
 try:
@@ -39,35 +39,34 @@ except:
 
 
 # exclude extremly large displacements
-MAX_FLOW = 500
+MAX_FLOW = 400
 SUM_FREQ = 100
 VAL_FREQ = 5000
 
 
 def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8, max_flow=MAX_FLOW):
     """ Loss function defined over sequence of flow predictions """
-    n_predictions = len(flow_preds)
+
+    n_predictions = len(flow_preds)    
     flow_loss = 0.0
 
-    # exclude invalid pixels and extremely large diplacements
+    # exlude invalid pixels and extremely large diplacements
     mag = torch.sum(flow_gt**2, dim=1).sqrt()
     valid = (valid >= 0.5) & (mag < max_flow)
 
     for i in range(n_predictions):
         i_weight = gamma**(n_predictions - i - 1)
-        if torch.isnan(flow_preds[i].abs()).any(): tq.tqdm.write("prediction is NaN")
-        if torch.isnan(flow_gt.abs()).any(): tq.tqdm.write("input is NaN")
         i_loss = (flow_preds[i] - flow_gt).abs()
         flow_loss += i_weight * (valid[:, None] * i_loss).mean()
-        
+
     epe = torch.sum((flow_preds[-1] - flow_gt)**2, dim=1).sqrt()
     epe = epe.view(-1)[valid.view(-1)]
-    
+
     metrics = {
         'epe': epe.mean().item(),
+        '1px': (epe < 1).float().mean().item(),
         '3px': (epe < 3).float().mean().item(),
         '5px': (epe < 5).float().mean().item(),
-        '10px': (epe < 10).float().mean().item()
     }
 
     return flow_loss, metrics
@@ -79,8 +78,8 @@ def count_parameters(model):
 
 def fetch_optimizer(args, model):
     """ Create the optimizer and learning rate scheduler """
-    
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wdecay, eps=args.epsilon)
+
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, args.lr, args.num_steps+100,
         pct_start=0.05, cycle_momentum=False, anneal_strategy='linear')
 
@@ -96,12 +95,12 @@ class Logger:
         self.writer = None
 
     def _print_training_status(self):
-        #metrics_data = [self.running_loss[k]/SUM_FREQ for k in sorted(self.running_loss.keys())]
-        training_str = "[{:6d}, lr={:10.7f}] ".format(self.total_steps+1, self.scheduler.get_last_lr()[0])
-        metrics_str = ""
-        for k, v in self.running_loss.items(): metrics_str += f' {k}={v/SUM_FREQ:<10.4f}'
+        metrics_data = [self.running_loss[k]/SUM_FREQ for k in sorted(self.running_loss.keys())]
+        training_str = "[{:6d}, {:10.7f}] ".format(self.total_steps+1, self.scheduler.get_last_lr()[0])
+        metrics_str = ("{:10.4f}, "*len(metrics_data)).format(*metrics_data)
+        
         # print the training status
-        tq.tqdm.write(training_str + metrics_str)
+        print(training_str + metrics_str)
 
         if self.writer is None:
             self.writer = SummaryWriter()
@@ -135,11 +134,9 @@ class Logger:
 
 
 def train(args):
-    torch.autograd.set_detect_anomaly(True)
+
     model = nn.DataParallel(RAFT(args), device_ids=args.gpus)
-    tq.tqdm.write(f"Training with:\nlr={args.lr}, batch_size={args.batch_size}")
-    tq.tqdm.write(f"")
-    tq.tqdm.write("Parameter Count: %d" % count_parameters(model))
+    print("Parameter Count: %d" % count_parameters(model))
 
     if args.restore_ckpt is not None:
         model.load_state_dict(torch.load(args.restore_ckpt), strict=False)
@@ -147,7 +144,7 @@ def train(args):
     model.cuda()
     model.train()
 
-    if args.freeze_bn:
+    if args.stage != 'chairs':
         model.module.freeze_bn()
 
     train_loader = datasets.fetch_dataloader(args)
@@ -156,15 +153,14 @@ def train(args):
     total_steps = 0
     scaler = GradScaler(enabled=args.mixed_precision)
     logger = Logger(model, scheduler)
-    logger.writer = SummaryWriter()
 
-    total_progress = tq.tqdm(desc='Total', total=args.num_steps)
-    #optimizer.step() # must execute before scheduler
+    VAL_FREQ = 5000
+    add_noise = True
 
     should_keep_training = True
     while should_keep_training:
 
-        for i_batch, data_blob in enumerate(tq.tqdm(train_loader, desc="training", leave=False)):
+        for i_batch, data_blob in enumerate(train_loader):
             optimizer.zero_grad()
             image1, image2, flow, valid = [x.cuda() for x in data_blob]
 
@@ -176,16 +172,16 @@ def train(args):
             flow_predictions = model(image1, image2, iters=args.iters)            
 
             loss, metrics = sequence_loss(flow_predictions, flow, valid, args.gamma)
-            if torch.isnan(loss): tq.tqdm.write("ERROR: Loss is NaN")
-            else:
-                scaler.scale(loss).backward()
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-                scaler.step(optimizer)
-                scheduler.step()
-                scaler.update()
-                logger.push(metrics)
-            # Validation 
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)                
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+            
+            scaler.step(optimizer)
+            scheduler.step()
+            scaler.update()
+
+            logger.push(metrics)
+
             if total_steps % VAL_FREQ == VAL_FREQ - 1:
                 PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
                 torch.save(model.state_dict(), PATH)
@@ -198,19 +194,19 @@ def train(args):
                         results.update(evaluate.validate_sintel(model.module))
                     elif val_dataset == 'kitti':
                         results.update(evaluate.validate_kitti(model.module))
-                    elif val_dataset == 'asphere': results.update(evaluate.validate_asphere(model.module))
-                logger.write_dict(results)
-                #Train Step
-                model.train()
-                if args.freeze_bn:
-                    model.module.freeze_bn()
 
+                logger.write_dict(results)
+                
+                model.train()
+                if args.stage != 'chairs':
+                    model.module.freeze_bn()
+            
             total_steps += 1
-            total_progress.update(1)
+
             if total_steps > args.num_steps:
                 should_keep_training = False
                 break
-    total_progress.close()
+
     logger.close()
     PATH = 'checkpoints/%s.pth' % args.name
     torch.save(model.state_dict(), PATH)
@@ -225,14 +221,14 @@ if __name__ == '__main__':
     parser.add_argument('--restore_ckpt', help="restore checkpoint")
     parser.add_argument('--small', action='store_true', help='use small model')
     parser.add_argument('--validation', type=str, nargs='+')
-    parser.add_argument('--num-workers', type=int, help="the number of workers to load data", default=os.cpu_count())
+
     parser.add_argument('--lr', type=float, default=0.00002)
     parser.add_argument('--num_steps', type=int, default=100000)
     parser.add_argument('--batch_size', type=int, default=6)
-    parser.add_argument('--image_size', type=int, nargs='+', default=[512, 512])
+    parser.add_argument('--image_size', type=int, nargs='+', default=[384, 512])
     parser.add_argument('--gpus', type=int, nargs='+', default=[0,1])
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
-    parser.add_argument('--freeze_bn', action='store_true', help="Prevent batch-normalization from updating during training") 
+
     parser.add_argument('--iters', type=int, default=12)
     parser.add_argument('--wdecay', type=float, default=.00005)
     parser.add_argument('--epsilon', type=float, default=1e-8)

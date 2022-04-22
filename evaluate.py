@@ -216,5 +216,5 @@ if __name__ == '__main__':
 
         elif args.dataset == 'kitti':
             validate_kitti(model.module)
-
-
+        elif args.dataset == 'asphere':
+            validate_asphere(model.module)

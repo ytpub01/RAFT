@@ -1,5 +1,5 @@
 # Need 0 workers to debug
-ipython --pdb train.py -- \
+ipython --pdb train.py \
     --name raft-asphere \
     --stage asphere \
     --validation asphere \

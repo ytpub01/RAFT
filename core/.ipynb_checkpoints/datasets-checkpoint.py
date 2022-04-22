@@ -50,14 +50,11 @@ class FlowDataset(data.Dataset):
 
         index = index % len(self.image_list)
         valid = None
-        
         if self.sparse:
             flow, valid = frame_utils.readFlowKITTI(self.flow_list[index])
         else:
             flow = frame_utils.read_gen(self.flow_list[index])
-            
-        #print(f"Processing {self.image_list[index][0].split('/')[-1].split('.')[0]}")
-        
+
         img1 = frame_utils.read_gen(self.image_list[index][0])
         img2 = frame_utils.read_gen(self.image_list[index][1])
 
@@ -72,10 +69,9 @@ class FlowDataset(data.Dataset):
         else:
             img1 = img1[..., :3]
             img2 = img2[..., :3]
-        
+
         if self.augmentor is not None:
             try:
-
                 if self.sparse:
                     img1, img2, flow, valid = self.augmentor(img1, img2, flow, valid)
                 else:
@@ -83,16 +79,18 @@ class FlowDataset(data.Dataset):
             except:
                 print("The image pair is", self.image_list[index][0], "and", self.image_list[index][1])
                 raise
- 
+
         img1 = torch.from_numpy(img1).permute(2, 0, 1).float()
         img2 = torch.from_numpy(img2).permute(2, 0, 1).float()
         flow = torch.from_numpy(flow).permute(2, 0, 1).float()
-        
+
         if valid is not None:
             valid = torch.from_numpy(valid)
         else:
             valid = (flow[0].abs() < 1000) & (flow[1].abs() < 1000)
+            
         return img1, img2, flow, valid.float()
+
 
     def __rmul__(self, v):
         self.flow_list = v * self.flow_list
@@ -154,12 +152,12 @@ class AsphereWarp(FlowDataset):
         super(AsphereWarp, self).__init__(aug_params)
 
         ids = np.loadtxt(osp.join(root, f"{split}.txt"), dtype=str)
+        print(type(ids))
         flows = [osp.join(root, "warps", f"{id}.flo") for id in ids]
+
         sat_images = [osp.join(root, "satimages", f"{id}.png") for id in ids]
         snap_images =[osp.join(root, "snapshots", f"{id}.png") for id in ids]
         # meta = sorted(glob(osp.join(root, split, 'meta', '*.json')))
-        # add masks
-        #masks = [osp.join(root, "masks", f"{id}.npz") for id in ids]
 
         if split == 'test':
             self.is_test = True
@@ -169,9 +167,10 @@ class AsphereWarp(FlowDataset):
         self.image_list += list(zip(sat_images, snap_images))
         self.crop = crop
         
+        # added yasser.taima 12/22/2021
         for img1 in sat_images:
-            frame_id = (img1.split('/')[-1]).split('.')[0]
-            self.extra_info.append(frame_id)
+            frame_id = img1.split('/')[-1]
+            self.extra_info += [ [frame_id] ]
         #####
 
     def __getitem__(self, index):
@@ -180,8 +179,9 @@ class AsphereWarp(FlowDataset):
         #    img1, img2, extra_info = super().__getitem__(index)
         #    return img1, img2, extra_info
         img1, img2, flo, valid = super().__getitem__(index)
-        
+        #####
         if self.crop:
+            # Center crop
             i0 = (img1.shape[-2]-self.crop[-2])//2
             j0 = (img1.shape[-1]-self.crop[-1])//2
             i1 = i0 + self.crop[0]
@@ -258,7 +258,7 @@ class HD1K(FlowDataset):
 
 
 def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
-    """ Create the data loader for the corresponding training set """
+    """ Create the data loader for the corresponding trainign set """
     if args.stage == 'asphere':
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
         train_dataset = AsphereWarp(aug_params, split='train')
