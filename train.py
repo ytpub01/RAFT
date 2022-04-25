@@ -95,7 +95,6 @@ class Logger:
         self.writer = None
 
     def _print_training_status(self):
-        #metrics_data = [self.running_loss[k]/SUM_FREQ for k in sorted(self.running_loss.keys())]
         training_str = "[{:6d}, lr={:10.7f}] ".format(self.total_steps+1, self.scheduler.get_last_lr()[0])
         metrics_str = ""
         for k, v in self.running_loss.items(): metrics_str += f' {k}={v/SUM_FREQ:<10.4f}'
@@ -163,6 +162,30 @@ def train(args):
     while should_keep_training:
 
         for i_batch, data_blob in enumerate(tq.tqdm(train_loader, desc="training", leave=False)):
+            # Validation 
+            if total_steps > 0 and total_steps % VAL_FREQ == 0:
+                PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
+                torch.save(model.state_dict(), PATH)
+
+                results = {}
+                for val_dataset in args.validation:
+                    if val_dataset == 'chairs':
+                        results.update(evaluate.validate_chairs(model.module))
+                    elif val_dataset == 'sintel':
+                        results.update(evaluate.validate_sintel(model.module))
+                    elif val_dataset == 'kitti':
+                        results.update(evaluate.validate_kitti(model.module))
+                    elif val_dataset == 'asphere':
+                        results.update(evaluate.validate_asphere(model.module))
+
+
+                logger.write_dict(results)
+                
+                model.train()
+#                if args.stage != 'chairs':
+#                    model.module.freeze_bn()
+
+            #Train Step
             optimizer.zero_grad()
             image1, image2, flow, valid = [x.cuda() for x in data_blob]
 

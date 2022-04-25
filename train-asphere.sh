@@ -1,7 +1,6 @@
 python -u train.py \
     --name raft-asphere \
     --stage asphere \
-    --validation asphere \
     --restore_ckpt models/raft-kitti.pth \
     --batch_size 2 \
     --image_size 1152 1152 \
