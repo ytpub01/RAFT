@@ -1,4 +1,4 @@
-runs/
+#runs/
 checkpoints/
 models.zip
 *.pyc

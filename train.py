@@ -14,13 +14,12 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from raft import RAFT
 import evaluate
 import datasets
 import tqdm as tq
 
-from torch.utils.tensorboard import SummaryWriter
 
 try:
     from torch.cuda.amp import GradScaler
@@ -58,8 +57,8 @@ def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8, max_flow=MAX_FLOW):
     for i in range(n_predictions):
         i_weight = gamma**(n_predictions - i - 1)
         #tq.tqdm.write(str(torch.sum(flow_preds[i].abs()).item()))
-        if torch.isnan(flow_preds[i].abs()).any(): tq.tqdm.write("prediction is NaN")
-        if torch.isnan(flow_gt.abs()).any(): tq.tqdm.write("input is NaN")
+        #if torch.isnan(flow_preds[i].abs()).any(): tq.tqdm.write("prediction is NaN")
+        #if torch.isnan(flow_gt.abs()).any(): tq.tqdm.write("input is NaN")
         i_loss = (flow_preds[i] - flow_gt).abs()
         flow_loss += i_weight * (valid[:, None] * i_loss).mean()
 
@@ -203,9 +202,11 @@ def train(args):
 
             loss, metrics = sequence_loss(flow_predictions, flow, valid, args.gamma)
             if torch.isnan(loss):
-                tq.tqdm.write("ERROR: Loss is NaN")
+                #tq.tqdm.write("ERROR: Loss is NaN")
+                pass
             elif np.isnan(metrics['epe']):
-                tq.tqdm.write("ERROR: epe is NaN")
+                #tq.tqdm.write("ERROR: epe is NaN")
+                pass
             else:
                 scaler.scale(loss).backward()
                 scaler.unscale_(optimizer)
