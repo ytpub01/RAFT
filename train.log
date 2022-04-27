@@ -103,3 +103,4 @@ lr=0.0004, batch_size=2
 
 Parameter Count: 5257536
 Training with 1860 image pairs
+[   100, lr= 0.0000236]  epe=102.4132   3px=0.0959     5px=0.1720     10px=0.2566    
