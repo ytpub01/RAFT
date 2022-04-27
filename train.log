@@ -92,3 +92,14 @@ Training with 1860 image pairs
 [   200, lr= 0.0000313]  epe=47.1900    3px=0.2548     5px=0.4251     10px=0.6075    
 [   300, lr= 0.0000389]  epe=43.3147    3px=0.2772     5px=0.4617     10px=0.6496    
 [   400, lr= 0.0000466]  epe=44.4588    3px=0.2665     5px=0.4577     10px=0.6609    
+[   500, lr= 0.0000543]  epe=48.2917    3px=0.2721     5px=0.4947     10px=0.6889    
+Training with:
+lr=0.0004, batch_size=2
+
+Parameter Count: 5257536
+Training with 1860 image pairs
+Training with:
+lr=0.0004, batch_size=2
+
+Parameter Count: 5257536
+Training with 1860 image pairs

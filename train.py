@@ -4,8 +4,6 @@ sys.path.append('core')
 
 import argparse
 import os
-import cv2
-import time
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -201,23 +199,22 @@ def train(args):
             flow_predictions = model(image1, image2, iters=args.iters)            
 
             loss, metrics = sequence_loss(flow_predictions, flow, valid, args.gamma)
-            if torch.isnan(loss):
+            #if torch.isnan(loss):
                 #tq.tqdm.write("ERROR: Loss is NaN")
-                pass
-            elif np.isnan(metrics['epe']):
+            #elif np.isnan(metrics['epe']):
                 #tq.tqdm.write("ERROR: epe is NaN")
-                pass
-            else:
-                scaler.scale(loss).backward()
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+            #else:
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+        
+            scaler.step(optimizer)
+            scheduler.step()
+            scaler.update()
+            # end else
             
-                scaler.step(optimizer)
-                scheduler.step()
-                scaler.update()
-
-                logger.push(metrics)
-            
+            logger.push(metrics)
+        
             total_steps += 1
             total_progress.update(1)
             if total_steps > args.num_steps:
