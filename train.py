@@ -62,10 +62,12 @@ def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8, max_flow=MAX_FLOW):
     for i in range(n_predictions):
         i_weight = gamma**(n_predictions - i - 1)
         #tq.tqdm.write(str(torch.sum(flow_preds[i].abs()).item()))
-        if torch.isnan(flow_preds[i].abs()).any(): tq.tqdm.write("prediction is NaN")
-        if torch.isnan(flow_gt.abs()).any(): tq.tqdm.write("input is NaN")
+        #if torch.isnan(flow_preds[i].abs()).any(): tq.tqdm.write("prediction is NaN")
+        #if torch.isnan(flow_gt.abs()).any(): tq.tqdm.write("input is NaN")
         i_loss = (flow_preds[i] - flow_gt).abs()
-        flow_loss += i_weight * (valid[:, None] * i_loss).mean()
+        valid_loss = valid[:, None] * i_loss
+        valid_loss[torch.isnan(valid_loss)] = 0.
+        flow_loss += i_weight * valid_loss.mean()
 
     epe = torch.sum((flow_preds[-1] - flow_gt)**2, dim=1).sqrt()
     epe = epe.view(-1)[valid.view(-1)]
@@ -170,7 +172,7 @@ def train(args):
     should_keep_training = True
     while should_keep_training:
 
-        for i_batch, data_blob in enumerate(tq.tqdm(train_loader, desc="training", leave=False)):
+        for data_blob in tq.tqdm(train_loader, desc="training", leave=False):
             # Validation 
             if total_steps and total_steps % VAL_FREQ == 0:
                 PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
