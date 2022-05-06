@@ -67,6 +67,7 @@ def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8, max_flow=MAX_FLOW):
         i_loss = (flow_preds[i] - flow_gt).abs()
         valid_loss = valid[:, None] * i_loss
         #valid_loss[torch.isnan(valid_loss)] = 0.
+        valid_loss[~valid[:,None]] = 0.
         flow_loss += i_weight * valid_loss.mean()
         #flow_loss += i_weight * torch.mean(valid_loss)
         
@@ -115,6 +116,7 @@ class Logger:
         if self.writer is None:
             self.writer = SummaryWriter()
 
+        #self.writer.add_figure()
         for k in self.running_loss:
             self.writer.add_scalar(k, self.running_loss[k]/SUM_FREQ, self.total_steps)
             self.running_loss[k] = 0.0

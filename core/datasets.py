@@ -140,7 +140,7 @@ class FlyingChairs(FlowDataset):
 
 class AsphereWarp(FlowDataset):
     def __init__(self, aug_params=None, split='train', root='datasets/asphere', crop=None):
-        """Dataset for ASphere warps
+        """Dataset for ASphere flows
 
         Args:
             aug_params ([type], optional): Constructor arguments to Augmentor.
@@ -154,7 +154,7 @@ class AsphereWarp(FlowDataset):
         super(AsphereWarp, self).__init__(aug_params)
 
         ids = np.loadtxt(osp.join(root, f"{split}.txt"), dtype=str)
-        flows = [osp.join(root, "warps", f"{id}.flo") for id in ids]
+        flows = [osp.join(root, "flows_masked", f"{id}.flo") for id in ids]
         sat_images = [osp.join(root, "satimages", f"{id}.png") for id in ids]
         snap_images =[osp.join(root, "snapshots", f"{id}.png") for id in ids]
         # meta = sorted(glob(osp.join(root, split, 'meta', '*.json')))
