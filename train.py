@@ -63,13 +63,11 @@ def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8, max_flow=MAX_FLOW):
         i_weight = gamma**(n_predictions - i - 1)
         #tq.tqdm.write(str(torch.sum(flow_preds[i].abs()).item()))
         if torch.isnan(flow_preds[i].abs()).any(): tq.tqdm.write("prediction is NaN")
-        if torch.isnan(flow_gt.abs()).any(): tq.tqdm.write("input is NaN")
+        #if torch.isnan(flow_gt.abs()).any(): tq.tqdm.write("input is NaN")
         i_loss = (flow_preds[i] - flow_gt).abs()
         valid_loss = valid[:, None] * i_loss
-        #valid_loss[torch.isnan(valid_loss)] = 0.
-        valid_loss[~valid[:,None]] = 0.
+        valid_loss[~valid.expand_as(valid_loss).permute(1,0,2,3)] = 0.
         flow_loss += i_weight * valid_loss.mean()
-        #flow_loss += i_weight * torch.mean(valid_loss)
         
     epe = torch.sum((flow_preds[-1] - flow_gt)**2, dim=1).sqrt()
     epe = epe.view(-1)[valid.view(-1)]
