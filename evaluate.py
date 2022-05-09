@@ -102,7 +102,7 @@ def validate_asphere(model, iters=24):
     val_dataset = datasets.AsphereWarp(split='validation', crop=(1000,1000))
     for i in tq.trange(len(val_dataset), desc="Validating"):
         #TODO - mask out the valid flow vectors
-        image1, image2, flow_gt, valid = val_dataset[i]
+        image1, image2, flow_gt, valid, extra_info = val_dataset[i]
         _, flow_pr = model(image1[None].cuda(), image2[None].cuda(), iters=iters, test_mode=True)
         epe = torch.sum((flow_pr[0].cpu() - flow_gt)**2, dim=0).sqrt()
         valid = (valid > 0.5).view(-1)
@@ -112,7 +112,7 @@ def validate_asphere(model, iters=24):
     epes = np.concatenate(epe_list)
     epe = np.mean(epes)
     tq.tqdm.write(f"Validation ASphere EPE: {epe},  out of {len(epes)} measurments")
-    return {'asphere': epe}
+    return {'validation': epe}
 
 
 @torch.no_grad()

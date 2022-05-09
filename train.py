@@ -63,7 +63,7 @@ def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8, max_flow=MAX_FLOW):
         i_weight = gamma**(n_predictions - i - 1)
         #tq.tqdm.write(str(torch.sum(flow_preds[i].abs()).item()))
         if torch.isnan(flow_preds[i].abs()).any(): tq.tqdm.write("prediction is NaN")
-        #if torch.isnan(flow_gt.abs()).any(): tq.tqdm.write("input is NaN")
+        if torch.isnan(flow_gt.abs()).all(): tq.tqdm.write("input is NaN")
         i_loss = (flow_preds[i] - flow_gt).abs()
         valid_loss = valid[:, None] * i_loss
         valid_loss[~valid.expand_as(valid_loss).permute(1,0,2,3)] = 0.
@@ -73,10 +73,10 @@ def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8, max_flow=MAX_FLOW):
     epe = epe.view(-1)[valid.view(-1)]
 
     metrics = {
-        'epe': _safe_mean(epe),
-        '3px': _safe_mean((epe < 3).float()),
-        '5px': _safe_mean((epe < 5).float()),
-        '10px': _safe_mean((epe < 10).float()),
+        'epe': epe.mean().item(),
+        '3px': (epe < 3).float().mean().item(),
+        '5px': (epe < 5).float().mean().item(),
+        '10px': (epe < 10).float().mean().item(),
     }
     return flow_loss, metrics
 
@@ -147,7 +147,7 @@ def train(args):
 
     torch.autograd.set_detect_anomaly(True)
     model = nn.DataParallel(RAFT(args), device_ids=args.gpus)
-    tq.tqdm.write(f"Training with:\nlr={args.lr}, batch_size={args.batch_size}")
+    tq.tqdm.write(f"Training with:\nlr={args.lr}, batch_size={args.batch_size}, image_size={args.image_size}")
     tq.tqdm.write(f"")
     tq.tqdm.write("Parameter Count: %d" % count_parameters(model))
 
@@ -199,7 +199,8 @@ def train(args):
 
             #Train Step
             optimizer.zero_grad()
-            image1, image2, flow, valid = [x.cuda() for x in data_blob]
+            image1, image2, flow, valid, extra_info = [x.cuda() for x in data_blob]
+            #tq.tqdm.write(f"frame ids are {extra_info[0].item()} and {extra_info[1].item()}")
 
             if args.add_noise:
                 stdv = np.random.uniform(0.0, 5.0)

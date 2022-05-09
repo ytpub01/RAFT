@@ -38,7 +38,7 @@ class FlowDataset(data.Dataset):
             img2 = np.array(img2).astype(np.uint8)[..., :3]
             img1 = torch.from_numpy(img1).permute(2, 0, 1).float()
             img2 = torch.from_numpy(img2).permute(2, 0, 1).float()
-            return img1, img2, self.extra_info[index]
+            return img1, img2, torch.tensor(self.extra_info[index])
 
         if not self.init_seed:
             worker_info = torch.utils.data.get_worker_info()
@@ -92,7 +92,7 @@ class FlowDataset(data.Dataset):
             valid = torch.from_numpy(valid)
         else:
             valid = (flow[0].abs() < 1000) & (flow[1].abs() < 1000)
-        return img1, img2, flow, valid.float()
+        return img1, img2, flow, valid.float(), torch.tensor(self.extra_info[index])
 
     def __rmul__(self, v):
         self.flow_list = v * self.flow_list
@@ -170,7 +170,7 @@ class AsphereWarp(FlowDataset):
         self.crop = crop
         
         for img1 in sat_images:
-            frame_id = (img1.split('/')[-1]).split('.')[0]
+            frame_id = int((img1.split('/')[-1]).split('.')[0])
             self.extra_info.append(frame_id)
         #####
 
@@ -179,7 +179,7 @@ class AsphereWarp(FlowDataset):
         #if self.is_test:
         #    img1, img2, extra_info = super().__getitem__(index)
         #    return img1, img2, extra_info
-        img1, img2, flo, valid = super().__getitem__(index)
+        img1, img2, flo, valid, extra_info = super().__getitem__(index)
         
         if self.crop:
             i0 = (img1.shape[-2]-self.crop[-2])//2
@@ -192,7 +192,7 @@ class AsphereWarp(FlowDataset):
             valid = valid[..., i0:i1, j0:j1]
             # Make sure that the U and V components of the flow are finite
             valid = valid * (torch.isfinite(flo[..., 0, :, :]) & torch.isfinite(flo[...,1,:,:]))
-        return img1, img2, flo, valid
+        return img1, img2, flo, valid, extra_info
 
 
 class FlyingThings3D(FlowDataset):
