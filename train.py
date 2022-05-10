@@ -65,18 +65,18 @@ def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8, max_flow=MAX_FLOW):
         if torch.isnan(flow_preds[i].abs()).any(): tq.tqdm.write("prediction is NaN")
         if torch.isnan(flow_gt.abs()).all(): tq.tqdm.write("input is NaN")
         i_loss = (flow_preds[i] - flow_gt).abs()
+        i_loss[torch.isnan(i_loss)] = 0.
         valid_loss = valid[:, None] * i_loss
-        valid_loss[~valid.expand_as(valid_loss).permute(1,0,2,3)] = 0.
         flow_loss += i_weight * valid_loss.mean()
         
     epe = torch.sum((flow_preds[-1] - flow_gt)**2, dim=1).sqrt()
     epe = epe.view(-1)[valid.view(-1)]
 
     metrics = {
-        'epe': epe.mean().item(),
-        '3px': (epe < 3).float().mean().item(),
-        '5px': (epe < 5).float().mean().item(),
-        '10px': (epe < 10).float().mean().item(),
+        'epe': _safe_mean(epe),
+        '3px': _safe_mean((epe < 3).float()),
+        '5px': _safe_mean((epe < 5).float()),
+        '10px': _safe_mean((epe < 10).float()),
     }
     return flow_loss, metrics
 
@@ -103,7 +103,7 @@ class Logger:
         self.running_loss = {}
         self.writer = None
 
-    def _print_training_status(self):
+    def _print_training_status(self, image1, image2, extra_info):
         #metrics_data = [self.running_loss[k]/SUM_FREQ for k in sorted(self.running_loss.keys())]
         training_str = "[{:6d}, lr={:10.7f}] ".format(self.total_steps+1, self.scheduler.get_last_lr()[0])
         metrics_str = ""
@@ -113,29 +113,30 @@ class Logger:
 
         if self.writer is None:
             self.writer = SummaryWriter()
-
-        #self.writer.add_figure()
+        
         for k in self.running_loss:
             self.writer.add_scalar(k, self.running_loss[k]/SUM_FREQ, self.total_steps)
             self.running_loss[k] = 0.0
+              
+        for i in range(args.batch_size):
+            self.writer.add_image(f"{i} satimage", image1[i], self.total_steps)
+            self.writer.add_image(f"{i} snapshot {extra_info[i].item()}", image2[i], self.total_steps)
 
-    def push(self, metrics):
+    def push(self, metrics, image1, image2, extra_info):
         self.total_steps += 1
 
         for key in metrics:
             if key not in self.running_loss:
                 self.running_loss[key] = 0.0
-
             self.running_loss[key] += metrics[key]
-
+            
         if self.total_steps % SUM_FREQ == SUM_FREQ-1:
-            self._print_training_status()
+            self._print_training_status(image1, image2, extra_info)
             self.running_loss = {}
 
     def write_dict(self, results):
         if self.writer is None:
             self.writer = SummaryWriter()
-
         for key in results:
             self.writer.add_scalar(key, results[key], self.total_steps)
 
@@ -175,7 +176,7 @@ def train(args):
 
         for data_blob in tq.tqdm(train_loader, desc="training", leave=False):
             # Validation 
-            if total_steps and total_steps % VAL_FREQ == 0:
+            if total_steps % VAL_FREQ == VAL_FREQ - 1:
                 PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
                 torch.save(model.state_dict(), PATH)
 
@@ -190,7 +191,6 @@ def train(args):
                     elif val_dataset == 'asphere':
                         results.update(evaluate.validate_asphere(model.module))
 
-
                 logger.write_dict(results)
                 
                 model.train()
@@ -201,6 +201,7 @@ def train(args):
             optimizer.zero_grad()
             image1, image2, flow, valid, extra_info = [x.cuda() for x in data_blob]
             #tq.tqdm.write(f"frame ids are {extra_info[0].item()} and {extra_info[1].item()}")
+            
 
             if args.add_noise:
                 stdv = np.random.uniform(0.0, 5.0)
@@ -223,7 +224,7 @@ def train(args):
                 scheduler.step()
                 scaler.update()
                             
-            logger.push(metrics)
+            logger.push(metrics, image1, image2, extra_info)
         
             total_steps += 1
             total_progress.update(1)

@@ -154,7 +154,7 @@ class AsphereWarp(FlowDataset):
         super(AsphereWarp, self).__init__(aug_params)
 
         ids = np.loadtxt(osp.join(root, f"{split}.txt"), dtype=str)
-        flows = [osp.join(root, "flows_masked", f"{id}.flo") for id in ids]
+        flows = [osp.join(root, "flows", f"{id}.flo") for id in ids]
         sat_images = [osp.join(root, "satimages", f"{id}.png") for id in ids]
         snap_images =[osp.join(root, "snapshots", f"{id}.png") for id in ids]
         # meta = sorted(glob(osp.join(root, split, 'meta', '*.json')))
@@ -175,10 +175,7 @@ class AsphereWarp(FlowDataset):
         #####
 
     def __getitem__(self, index):
-        # added yasser.taima 12/22/2021
-        #if self.is_test:
-        #    img1, img2, extra_info = super().__getitem__(index)
-        #    return img1, img2, extra_info
+        
         img1, img2, flo, valid, extra_info = super().__getitem__(index)
         
         if self.crop:
