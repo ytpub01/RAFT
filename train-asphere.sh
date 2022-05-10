@@ -6,6 +6,6 @@ python -u train.py \
     --batch_size 4 \
     --image_size 896 896 \
     --lr 0.0004 \
-    --wdecay 0.0001 \
+    --wdecay 0.00001 \
     --gamma 0.85 \
     | tee -a train.log
