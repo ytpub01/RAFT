@@ -118,9 +118,9 @@ class Logger:
             self.writer.add_scalar(k, self.running_loss[k]/SUM_FREQ, self.total_steps)
             self.running_loss[k] = 0.0
               
-        for i in range(args.batch_size):
-            self.writer.add_image(f"{i} satimage", image1[i], self.total_steps)
-            self.writer.add_image(f"{i} snapshot {extra_info[i].item()}", image2[i], self.total_steps)
+        #for i in range(args.batch_size):
+        #    self.writer.add_image(f"{i} satimage {extra_info[i].item()}", image1[i], self.total_steps)
+        #    self.writer.add_image(f"{i} snapshot {extra_info[i].item()}", image2[i], self.total_steps)
 
     def push(self, metrics, image1, image2, extra_info):
         self.total_steps += 1
