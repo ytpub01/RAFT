@@ -70,10 +70,10 @@ def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8, max_flow=MAX_FLOW):
         flow_loss += i_weight * valid_loss.mean()
         
     epe = torch.sum((flow_preds[-1] - flow_gt)**2, dim=1).sqrt()
-    epe = epe.view(-1)[valid.view(-1)]
+    epe = epe.view(-1)[valid.view(-1)]  #same as epe.flatten()
 
     metrics = {
-        'epe': _safe_mean(epe),
+        'epe': _safe_mean(epe), # only counts valid pixels in mean due to previous line
         '3px': _safe_mean((epe < 3).float()),
         '5px': _safe_mean((epe < 5).float()),
         '10px': _safe_mean((epe < 10).float()),
@@ -153,6 +153,7 @@ def train(args):
     tq.tqdm.write("Parameter Count: %d" % count_parameters(model))
 
     if args.restore_ckpt is not None:
+        # also load state_dict for scheduler, optimizer and scaler
         model.load_state_dict(torch.load(args.restore_ckpt), strict=False)
 
     model.cuda()
@@ -178,6 +179,7 @@ def train(args):
             # Validation 
             if total_steps % VAL_FREQ == VAL_FREQ - 1:
                 PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
+                # TODO: save optimizer and scheduler, and scalar
                 torch.save(model.state_dict(), PATH)
 
                 results = {}
