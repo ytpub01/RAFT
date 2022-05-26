@@ -148,6 +148,7 @@ def train(args):
 
     torch.autograd.set_detect_anomaly(True)
     model = nn.DataParallel(RAFT(args), device_ids=args.gpus)
+    
     tq.tqdm.write(f"Training with:\nlr={args.lr}, batch_size={args.batch_size}, image_size={args.image_size}")
     tq.tqdm.write(f"")
     tq.tqdm.write("Parameter Count: %d" % count_parameters(model))
@@ -155,16 +156,13 @@ def train(args):
     if args.restore_ckpt is not None:
         # also load state_dict for scheduler, optimizer and scaler
         model.load_state_dict(torch.load(args.restore_ckpt), strict=False)
-
     model.cuda()
     model.train()
-
     if args.freeze_bn:
         model.module.freeze_bn()
-
     train_loader = datasets.fetch_dataloader(args)
     optimizer, scheduler = fetch_optimizer(args, model)
-
+    
     total_steps = 0
     scaler = GradScaler(enabled=args.mixed_precision)
     logger = Logger(model, scheduler)
@@ -175,7 +173,7 @@ def train(args):
     should_keep_training = True
     while should_keep_training:
 
-        for data_blob in tq.tqdm(train_loader, desc="training", leave=False):
+        for data_blob in tq.tqdm(train_loader, desc="Training", leave=False):
             # Validation 
             if total_steps % VAL_FREQ == VAL_FREQ - 1:
                 PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
@@ -192,26 +190,20 @@ def train(args):
                         results.update(evaluate.validate_kitti(model.module))
                     elif val_dataset == 'asphere':
                         results.update(evaluate.validate_asphere(model.module))
-
-                logger.write_dict(results)
-                
+                logger.write_dict(results)            
                 model.train()
-                if args.stage != 'chairs':
+                if args.freeze_bn:
                    model.module.freeze_bn()
 
             #Train Step
             optimizer.zero_grad()
             image1, image2, flow, valid, extra_info = [x.cuda() for x in data_blob]
             #tq.tqdm.write(f"frame ids are {extra_info[0].item()} and {extra_info[1].item()}")
-            
-
             if args.add_noise:
                 stdv = np.random.uniform(0.0, 5.0)
                 image1 = (image1 + stdv * torch.randn(*image1.shape).cuda()).clamp(0.0, 255.0)
                 image2 = (image2 + stdv * torch.randn(*image2.shape).cuda()).clamp(0.0, 255.0)
-
             flow_predictions = model(image1, image2, iters=args.iters)            
-
             loss, metrics = sequence_loss(flow_predictions, flow, valid, args.gamma)
             if torch.isnan(loss):
                 tq.tqdm.write("ERROR: Loss is NaN")
@@ -221,13 +213,11 @@ def train(args):
                 scaler.scale(loss).backward()
                 scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-            
                 scaler.step(optimizer)
                 scheduler.step()
                 scaler.update()
                             
             logger.push(metrics, image1, image2, extra_info)
-        
             total_steps += 1
             total_progress.update(1)
             if total_steps > args.num_steps:

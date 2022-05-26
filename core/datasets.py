@@ -139,7 +139,7 @@ class FlyingChairs(FlowDataset):
 
 
 class AsphereWarp(FlowDataset):
-    def __init__(self, aug_params=None, split='train', root='datasets/asphere', crop=None):
+    def __init__(self, aug_params=None, split='train', root='datasets/asphere', crop=None, masked=True):
         """Dataset for ASphere flows
 
         Args:
@@ -152,9 +152,12 @@ class AsphereWarp(FlowDataset):
         TODO: Fix augmentor to get rid of nonconfigurable/magic parameters and remove 'crop' argument. 
         """
         super(AsphereWarp, self).__init__(aug_params)
-
+        if masked:
+            flows_dir = "flows_masked"
+        else:
+            flows_dir = "flows"
         ids = np.loadtxt(osp.join(root, f"{split}.txt"), dtype=str)
-        flows = [osp.join(root, "flows_masked", f"{id}.flo") for id in ids]
+        flows = [osp.join(root, flows_dir, f"{id}.flo") for id in ids]
         sat_images = [osp.join(root, "satimages", f"{id}.png") for id in ids]
         snap_images =[osp.join(root, "snapshots", f"{id}.png") for id in ids]
         # meta = sorted(glob(osp.join(root, split, 'meta', '*.json')))
