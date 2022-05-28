@@ -37,7 +37,7 @@ except:
 
 
 # exclude extremly large displacements
-MAX_FLOW = 500
+MAX_FLOW = 400
 SUM_FREQ = 100
 VAL_FREQ = 5000
 
