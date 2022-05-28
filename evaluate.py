@@ -99,7 +99,7 @@ def validate_asphere(model, iters=24):
     model.eval()
     epe_list = []
 
-    val_dataset = datasets.AsphereWarp(split='validation', crop=(1000,1000), masked=False)
+    val_dataset = datasets.AsphereWarp(split='validation', crop=(1000,1000), masked=True)
     for i in tq.trange(len(val_dataset), desc="Validating"):
         #TODO - mask out the valid flow vectors
         image1, image2, flow_gt, valid, extra_info = val_dataset[i]
