@@ -51,27 +51,21 @@ def _safe_mean(a):
 
 def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8, max_flow=MAX_FLOW):
     """ Loss function defined over sequence of flow predictions """
-
     n_predictions = len(flow_preds)
     flow_loss = 0.0
-
     # exclude invalid pixels and extremely large diplacements
     mag = torch.sum(flow_gt**2, dim=1).sqrt()
     valid = (valid >= 0.5) & (mag < max_flow)
-
     for i in range(n_predictions):
         i_weight = gamma**(n_predictions - i - 1)
-        #tq.tqdm.write(str(torch.sum(flow_preds[i].abs()).item()))
         if torch.isnan(flow_preds[i].abs()).any(): tq.tqdm.write("prediction is NaN")
         if torch.isnan(flow_gt.abs()).all(): tq.tqdm.write("input is NaN")
         i_loss = (flow_preds[i] - flow_gt).abs()
         i_loss[torch.isnan(i_loss)] = 0.
         valid_loss = valid[:, None] * i_loss
         flow_loss += i_weight * valid_loss.mean()
-        
     epe = torch.sum((flow_preds[-1] - flow_gt)**2, dim=1).sqrt()
     epe = epe.view(-1)[valid.view(-1)]  #same as epe.flatten()
-
     metrics = {
         'epe': _safe_mean(epe), # only counts valid pixels in mean due to previous line
         '3px': _safe_mean((epe < 3).float()),
@@ -80,20 +74,15 @@ def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8, max_flow=MAX_FLOW):
     }
     return flow_loss, metrics
 
-
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-
 def fetch_optimizer(args, model):
     """ Create the optimizer and learning rate scheduler """
-
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wdecay, eps=args.epsilon)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, args.lr, args.num_steps+100,
         pct_start=0.05, cycle_momentum=False, anneal_strategy='linear')
-
-    return optimizer, scheduler
-    
+    return optimizer, scheduler 
 
 class Logger:
     def __init__(self, model, scheduler):
@@ -104,7 +93,6 @@ class Logger:
         self.writer = None
 
     def _print_training_status(self, image1, image2, extra_info):
-        #metrics_data = [self.running_loss[k]/SUM_FREQ for k in sorted(self.running_loss.keys())]
         training_str = "[{:6d}, lr={:10.7f}] ".format(self.total_steps+1, self.scheduler.get_last_lr()[0])
         metrics_str = ""
         for k, v in self.running_loss.items(): metrics_str += f' {k}={v/SUM_FREQ:<10.4f}'
@@ -117,10 +105,6 @@ class Logger:
         for k in self.running_loss:
             self.writer.add_scalar(k, self.running_loss[k]/SUM_FREQ, self.total_steps)
             self.running_loss[k] = 0.0
-              
-        #for i in range(args.batch_size):
-        #    self.writer.add_image(f"{i} satimage {extra_info[i].item()}", image1[i], self.total_steps)
-        #    self.writer.add_image(f"{i} snapshot {extra_info[i].item()}", image2[i], self.total_steps)
 
     def push(self, metrics, image1, image2, extra_info):
         self.total_steps += 1
@@ -198,7 +182,6 @@ def train(args):
             #Train Step
             optimizer.zero_grad()
             image1, image2, flow, valid, extra_info = [x.cuda() for x in data_blob]
-            #tq.tqdm.write(f"frame ids are {extra_info[0].item()} and {extra_info[1].item()}")
             if args.add_noise:
                 stdv = np.random.uniform(0.0, 5.0)
                 image1 = (image1 + stdv * torch.randn(*image1.shape).cuda()).clamp(0.0, 255.0)
@@ -227,9 +210,7 @@ def train(args):
     logger.close()
     PATH = 'checkpoints/%s.pth' % args.name
     torch.save(model.state_dict(), PATH)
-
     return PATH
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

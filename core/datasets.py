@@ -161,8 +161,6 @@ class AsphereWarp(FlowDataset):
         sat_images = [osp.join(root, "satimages", f"{id}.png") for id in ids]
         snap_images =[osp.join(root, "snapshots", f"{id}.png") for id in ids]
         # meta = sorted(glob(osp.join(root, split, 'meta', '*.json')))
-        # add masks
-        #masks = [osp.join(root, "masks", f"{id}.npz") for id in ids]
 
         if split == 'test':
             self.is_test = True
