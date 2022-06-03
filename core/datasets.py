@@ -11,6 +11,8 @@ import random
 from glob import glob
 import os.path as osp
 
+import traceback
+
 from utils import frame_utils
 from utils.augmentor import FlowAugmentor, SparseFlowAugmentor
 
@@ -56,7 +58,7 @@ class FlowDataset(data.Dataset):
         else:
             flow = frame_utils.read_gen(self.flow_list[index])
             
-        #print(f"Processing {self.image_list[index][0].split('/')[-1].split('.')[0]}")
+        id_ = self.image_list[index][0].split('/')[-1].split('.')[0]
         
         img1 = frame_utils.read_gen(self.image_list[index][0])
         img2 = frame_utils.read_gen(self.image_list[index][1])
@@ -80,8 +82,8 @@ class FlowDataset(data.Dataset):
                     img1, img2, flow, valid = self.augmentor(img1, img2, flow, valid)
                 else:
                     img1, img2, flow = self.augmentor(img1, img2, flow)
-            except:
-                print("The image pair is", self.image_list[index][0], "and", self.image_list[index][1])
+            except Exception as e:
+                print(f"Skipping id {id_} with image size {img1.shape} due to an error {e} : {traceback.format_exc()}")
                 raise
  
         img1 = torch.from_numpy(img1).permute(2, 0, 1).float()
@@ -290,7 +292,7 @@ def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
         train_dataset = KITTI(aug_params, split='training')
 
     train_loader = data.DataLoader(train_dataset, batch_size=args.batch_size, 
-        pin_memory=False, shuffle=True, num_workers=args.num_workers, drop_last=True)
+        pin_memory=False, shuffle=True, num_workers=args.workers, drop_last=True)
 
     print('Training with %d image pairs' % len(train_dataset))
     return train_loader

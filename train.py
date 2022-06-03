@@ -159,7 +159,7 @@ def train(args):
 
         for data_blob in tq.tqdm(train_loader, desc="Training", leave=False):
             # Validation 
-            if total_steps % VAL_FREQ == VAL_FREQ - 1:
+            if total_steps % VAL_FREQ == 0:
                 PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
                 # TODO: save optimizer and scheduler, and scalar
                 torch.save(model.state_dict(), PATH)
@@ -220,7 +220,7 @@ if __name__ == '__main__':
     parser.add_argument('--restore_ckpt', help="restore checkpoint")
     parser.add_argument('--small', action='store_true', help='use small model')
     parser.add_argument('--validation', type=str, nargs='+')
-    parser.add_argument('--num-workers', type=int, help="the number of workers to load data", default=os.cpu_count())
+    parser.add_argument('--workers', type=int, help="the number of workers to load data", default=os.cpu_count())
 
     parser.add_argument('--lr', type=float, default=0.00002)
     parser.add_argument('--num_steps', type=int, default=100000)
