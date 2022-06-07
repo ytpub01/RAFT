@@ -61,6 +61,8 @@ for id_ in tq.tqdm(ids, desc = "Processing...", leave=False):
     plt.subplot(2,2,4)
     plt.imshow(mag_gt)
     plt.title(f"ground truth {id_}")
+    viz_predicted_path = dsroot + f"/viz_flows_predicted/{id_}-mag.png"
+    plt.savefig(viz_predicted_path)
     plt.figure(figsize=(18,9))
     plt.subplot(1,2,1)
     plt.title("satimage")
@@ -68,6 +70,6 @@ for id_ in tq.tqdm(ids, desc = "Processing...", leave=False):
     plt.subplot(1,2,2)
     plt.title("snapshot")
     plt.imshow(image2.numpy().astype(np.uint8).transpose(1,2,0))
-    viz_predicted_path = dsroot + f"/viz_flows_predicted/{id_}.png"
+    viz_predicted_path = dsroot + f"/viz_flows_predicted/{id_}-pairs.png"
     plt.savefig(viz_predicted_path)
     plt.close("all")
