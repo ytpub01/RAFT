@@ -156,10 +156,10 @@ def train(args):
 
     should_keep_training = True
     while should_keep_training:
-
-        for data_blob in tq.tqdm(train_loader, desc="Training", leave=False):
+        loop = tq.tqdm(train_loader, desc="Training", leave=False)
+        for data_blob in loop:
             # Validation 
-            if total_steps % VAL_FREQ == 0:
+            if total_steps % VAL_FREQ == VAL_FREQ-1:
                 PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
                 # TODO: save optimizer and scheduler, and scalar
                 torch.save(model.state_dict(), PATH)
@@ -199,7 +199,7 @@ def train(args):
                 scaler.step(optimizer)
                 scheduler.step()
                 scaler.update()
-                            
+            loop.set_postfix({"L":loss.item()})
             logger.push(metrics, image1, image2, extra_info)
             total_steps += 1
             total_progress.update(1)

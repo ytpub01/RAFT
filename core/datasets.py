@@ -53,10 +53,7 @@ class FlowDataset(data.Dataset):
         index = index % len(self.image_list)
         valid = None
         
-        if self.sparse:
-            flow, valid = frame_utils.readFlowKITTI(self.flow_list[index])
-        else:
-            flow = frame_utils.read_gen(self.flow_list[index])
+        valid, flow = self.read_flow(index)
             
         id_ = self.image_list[index][0].split('/')[-1].split('.')[0]
         
@@ -95,6 +92,13 @@ class FlowDataset(data.Dataset):
         else:
             valid = (flow[0].abs() < 1000) & (flow[1].abs() < 1000)
         return img1, img2, flow, valid.float(), torch.tensor(self.extra_info[index])
+
+    def read_flow(self, index):
+        if self.sparse:
+            flow, valid = frame_utils.readFlowKITTI(self.flow_list[index])
+        else:
+            flow = frame_utils.read_gen(self.flow_list[index])
+        return valid,flow
 
     def __rmul__(self, v):
         self.flow_list = v * self.flow_list
@@ -141,7 +145,7 @@ class FlyingChairs(FlowDataset):
 
 
 class AsphereWarp(FlowDataset):
-    def __init__(self, aug_params=None, split='train', root='datasets/asphere', crop=None, masked=True):
+    def __init__(self, aug_params=None, split='train', root='datasets/asphere', crop=None):
         """Dataset for ASphere flows
 
         Args:
@@ -153,29 +157,31 @@ class AsphereWarp(FlowDataset):
         NOTE:  The 'crop' argument is done here after standard augmentation, but it shouldn't be. 
         TODO: Fix augmentor to get rid of nonconfigurable/magic parameters and remove 'crop' argument. 
         """
-        super(AsphereWarp, self).__init__(aug_params)
-        if masked:
-            flows_dir = "flows_masked"
-        else:
-            flows_dir = "flows"
+        super(AsphereWarp, self).__init__(aug_params, sparse=True)
         ids = np.loadtxt(osp.join(root, f"{split}.txt"), dtype=str)
-        flows = [osp.join(root, flows_dir, f"{id}.flo") for id in ids]
+        flows = [osp.join(root, "flows", f"{id}.flo") for id in ids]
         sat_images = [osp.join(root, "satimages", f"{id}.png") for id in ids]
-        snap_images =[osp.join(root, "snapshots", f"{id}.png") for id in ids]
+        snap_images = [osp.join(root, "snapshots", f"{id}.png") for id in ids]
+        masks = [osp.join(root, "masks", f"{id}.npz") for id in ids]
         # meta = sorted(glob(osp.join(root, split, 'meta', '*.json')))
 
         if split == 'test':
             self.is_test = True
     
-        # why is this added, since it is called once
-        self.flow_list += flows
-        self.image_list += list(zip(sat_images, snap_images))
+        self.flow_list = flows
+        self.mask_list = masks
+        self.image_list = list(zip(sat_images, snap_images))
         self.crop = crop
         
         for img1 in sat_images:
             frame_id = int((img1.split('/')[-1]).split('.')[0])
             self.extra_info.append(frame_id)
         #####
+
+    def read_flow(self, index):
+        flow = frame_utils.read_gen(self.flow_list[index])
+        valid = frame_utils.read_gen(self.mask_list[index])
+        return valid, flow
 
     def __getitem__(self, index):
         
