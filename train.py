@@ -1,40 +1,19 @@
 from __future__ import print_function, division
 import sys
 sys.path.append('core')
-
 import argparse
 import os
 import numpy as np
-import matplotlib.pyplot as plt
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
-
+import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 from raft import RAFT
 import evaluate
 import datasets
+from torch.cuda.amp import GradScaler
 import tqdm as tq
-
-
-try:
-    from torch.cuda.amp import GradScaler
-except:
-    # dummy GradScaler for PyTorch < 1.6
-    class GradScaler:
-        def __init__(self):
-            pass
-        def scale(self, loss):
-            return loss
-        def unscale_(self, optimizer):
-            pass
-        def step(self, optimizer):
-            optimizer.step()
-        def update(self):
-            pass
-
 
 # exclude extremly large displacements
 MAX_FLOW = 400
@@ -127,16 +106,12 @@ class Logger:
     def close(self):
         self.writer.close()
 
-
 def train(args):
-
     torch.autograd.set_detect_anomaly(True)
     model = nn.DataParallel(RAFT(args), device_ids=args.gpus)
-    
     tq.tqdm.write(f"Training with:\nlr={args.lr}, batch_size={args.batch_size}, image_size={args.image_size}")
     tq.tqdm.write(f"")
     tq.tqdm.write("Parameter Count: %d" % count_parameters(model))
-
     if args.restore_ckpt is not None:
         # also load state_dict for scheduler, optimizer and scaler
         model.load_state_dict(torch.load(args.restore_ckpt), strict=False)
@@ -146,14 +121,11 @@ def train(args):
         model.module.freeze_bn()
     train_loader = datasets.fetch_dataloader(args)
     optimizer, scheduler = fetch_optimizer(args, model)
-    
     total_steps = 0
     scaler = GradScaler(enabled=args.mixed_precision)
     logger = Logger(model, scheduler)
-
     total_progress = tq.tqdm(desc='Total', total=args.num_steps)
     optimizer.step() # must execute before scheduler
-
     should_keep_training = True
     while should_keep_training:
         loop = tq.tqdm(train_loader, desc="Training", leave=False)
@@ -163,22 +135,14 @@ def train(args):
                 PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
                 # TODO: save optimizer and scheduler, and scalar
                 torch.save(model.state_dict(), PATH)
-
                 results = {}
                 for val_dataset in args.validation:
-                    if val_dataset == 'chairs':
-                        results.update(evaluate.validate_chairs(model.module))
-                    elif val_dataset == 'sintel':
-                        results.update(evaluate.validate_sintel(model.module))
-                    elif val_dataset == 'kitti':
-                        results.update(evaluate.validate_kitti(model.module))
-                    elif val_dataset == 'asphere':
+                    if val_dataset == 'asphere':
                         results.update(evaluate.validate_asphere(model.module))
                 logger.write_dict(results)            
                 model.train()
                 if args.freeze_bn:
                    model.module.freeze_bn()
-
             #Train Step
             optimizer.zero_grad()
             image1, image2, flow, valid, extra_info = [x.cuda() for x in data_blob]
@@ -221,14 +185,12 @@ if __name__ == '__main__':
     parser.add_argument('--small', action='store_true', help='use small model')
     parser.add_argument('--validation', type=str, nargs='+')
     parser.add_argument('--workers', type=int, help="the number of workers to load data", default=os.cpu_count())
-
     parser.add_argument('--lr', type=float, default=0.00002)
     parser.add_argument('--num_steps', type=int, default=100000)
     parser.add_argument('--batch_size', type=int, default=6)
     parser.add_argument('--image_size', type=int, nargs='+', default=[512, 512])
     parser.add_argument('--gpus', type=int, nargs='+', default=[0,1])
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
-
     parser.add_argument('--iters', type=int, default=12)
     parser.add_argument('--wdecay', type=float, default=.00005)
     parser.add_argument('--epsilon', type=float, default=1e-8)
@@ -237,11 +199,8 @@ if __name__ == '__main__':
     parser.add_argument('--gamma', type=float, default=0.8, help='exponential weighting')
     parser.add_argument('--add_noise', action='store_true')
     args = parser.parse_args()
-
     torch.manual_seed(1234)
     np.random.seed(1234)
-
     if not os.path.isdir('checkpoints'):
         os.mkdir('checkpoints')
-
     train(args)
