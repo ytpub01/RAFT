@@ -159,7 +159,7 @@ def train(args):
         loop = tq.tqdm(train_loader, desc="Training", leave=False)
         for data_blob in loop:
             # Validation 
-            if total_steps % VAL_FREQ == VAL_FREQ-1:
+            if total_steps % VAL_FREQ == 0:
                 PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
                 # TODO: save optimizer and scheduler, and scalar
                 torch.save(model.state_dict(), PATH)
