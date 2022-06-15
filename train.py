@@ -130,19 +130,6 @@ def train(args):
     while should_keep_training:
         loop = tq.tqdm(train_loader, desc="Training", leave=False)
         for data_blob in loop:
-            # Validation 
-            if total_steps % VAL_FREQ == 0:
-                PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
-                # TODO: save optimizer and scheduler, and scalar
-                torch.save(model.state_dict(), PATH)
-                results = {}
-                for val_dataset in args.validation:
-                    if val_dataset == 'asphere':
-                        results.update(evaluate.validate_asphere(model.module))
-                logger.write_dict(results)            
-                model.train()
-                if args.freeze_bn:
-                   model.module.freeze_bn()
             #Train Step
             optimizer.zero_grad()
             image1, image2, flow, valid, extra_info = [x.cuda() for x in data_blob]
@@ -163,8 +150,21 @@ def train(args):
                 scaler.step(optimizer)
                 scheduler.step()
                 scaler.update()
-            loop.set_postfix({"L":loss.item()})
+            loop.set_postfix({"L":loss.item(), "I1":extra_info[0].item(), "I2":extra_info[1].item()})
             logger.push(metrics, image1, image2, extra_info)
+            # Validation 
+            if total_steps % VAL_FREQ == VAL_FREQ - 1:
+                PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
+                # TODO: save optimizer and scheduler, and scalar
+                torch.save(model.state_dict(), PATH)
+                results = {}
+                for val_dataset in args.validation:
+                    if val_dataset == 'asphere':
+                        results.update(evaluate.validate_asphere(model.module))
+                logger.write_dict(results)            
+                model.train()
+                if args.freeze_bn:
+                   model.module.freeze_bn()
             total_steps += 1
             total_progress.update(1)
             if total_steps > args.num_steps:

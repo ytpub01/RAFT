@@ -29,7 +29,7 @@ model.cuda();
 model.eval();
 testset = datasets.AsphereWarp(split="validation", crop=(1200, 1200))
 testset_path = dsroot + "/validation.txt"
-ids = np.loadtxt(testset_path, dtype=int).tolist()
+#ids = np.loadtxt(testset_path, dtype=int).tolist()
 #ids = random.sample(ids, 100)
 viz_predicted_dir = dsroot + "/viz_flows_predicted"
 flows_predicted_dir = dsroot + "/flows_predicted"
