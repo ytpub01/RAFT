@@ -6,6 +6,7 @@ import random
 import os.path as osp
 import traceback
 from utils import frame_utils
+from utils.utils import center_crop
 from utils.augmentor import FlowAugmentor, SparseFlowAugmentor
 
 class FlowDataset(data.Dataset):
@@ -114,16 +115,8 @@ class AsphereWarp(FlowDataset):
         else:
             valid = None
         return flow, valid
-    
     def __getitem__(self, index):
         img1, img2, flo, valid, extra_info = super().__getitem__(index)
-        def center_crop(img, crop):
-            i0 = (img.shape[-2]-crop[-2])//2 # i0 is the min row, i1 is max row
-            j0 = (img.shape[-1]-crop[-1])//2 # j0 is the min col, j1 is max col
-            i1 = i0 + crop[0]
-            j1 = j0 + crop[1]
-            img = img[...,i0:i1,...,j0:j1]
-            return img
         if self.crop:
             # apply center_crop for each! i0, j0 are different as images are different sizes
             img1 = center_crop(img1, self.crop)

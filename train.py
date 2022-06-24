@@ -64,12 +64,29 @@ def fetch_optimizer(args, model):
     return optimizer, scheduler 
 
 class Logger:
-    def __init__(self, model, scheduler):
+    def __init__(self, model, scheduler, examples=None):
         self.model = model
         self.scheduler = scheduler
         self.total_steps = 0
         self.running_loss = {}
         self.writer = None
+        self.examples = examples
+        self.points = {}
+    
+    @torch.no_grad()
+    def plot_examples(self):
+        assert self.examples is not None, "set examples before plotting them"
+        image1, image2, flow, valid, ids = [x.cuda() for x in self.examples]
+        old_mode = self.model.training
+        self.model.eval()
+        _, flow_predictions = self.model(image1, image2, iters=args.iters, test_mode=True)
+        self.model.train(old_mode)
+        for id in ids:
+            if id not in self.points:
+                interleaved = np.loadtxt(f"/home/ytaima/warpsds/viz_preds/{id}-pts.txt")
+                sat_points = interleaved[::2]
+                
+                self.points[id] = 
 
     def _print_training_status(self, image1, image2, extra_info):
         training_str = "[{:6d}, lr={:10.7f}] ".format(self.total_steps+1, self.scheduler.get_last_lr()[0])

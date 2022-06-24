@@ -80,3 +80,18 @@ def coords_grid(batch, ht, wd):
 def upflow8(flow, mode='bilinear'):
     new_size = (8 * flow.shape[2], 8 * flow.shape[3])
     return  8 * F.interpolate(flow, size=new_size, mode=mode, align_corners=True)
+
+def center_crop(img, crop, channels_first=True):
+    if channels_first:
+        i0 = (img.shape[-2]-crop[-2])//2 # i0 is the min row, i1 is max row
+        j0 = (img.shape[-1]-crop[-1])//2 # j0 is the min col, j1 is max col
+        i1 = i0 + crop[-2]
+        j1 = j0 + crop[-1]
+        img = img[...,i0:i1,j0:j1]
+    else:
+        i0 = (img.shape[0]-crop[0])//2 # i0 is the min row, i1 is max row
+        j0 = (img.shape[1]-crop[1])//2 # j0 is the min col, j1 is max col
+        i1 = i0 + crop[0]
+        j1 = j0 + crop[1]
+        img = img[i0:i1,j0:j1]
+    return img
