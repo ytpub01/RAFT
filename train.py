@@ -86,7 +86,7 @@ class Logger:
                 interleaved = np.loadtxt(f"/home/ytaima/warpsds/viz_preds/{id}-pts.txt")
                 sat_points = interleaved[::2]
                 
-                self.points[id] = 
+                # TODO: self.points[id] = 
 
     def _print_training_status(self, image1, image2, extra_info):
         training_str = "[{:6d}, lr={:10.7f}] ".format(self.total_steps+1, self.scheduler.get_last_lr()[0])
