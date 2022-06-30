@@ -19,8 +19,8 @@ import viz_preds
 dsroot = root + "/data/warpsds"
 args = EasyDict()
 args.stage = "asphere"
-args.restore_ckpt = "models/raft-asphere.pth"
-args.image_size= (1200, 1200)
+args.restore_ckpt = root + "/ext/RAFT/models/raft-asphere.pth"
+args.image_size= (1056, 1056)
 args.batch_size = 2
 args.workers = 24
 args.small = False
@@ -33,9 +33,10 @@ model.load_state_dict(state, strict=False)
 torch.no_grad()
 model.cuda();
 model.eval();
-testset = datasets.AsphereWarp(split="validation", crop=(1056, 1056))
+testset = datasets.AsphereWarp(split="validation", crop=args.image_size)
 testset_path = dsroot + "/validation.txt"
 ids = np.loadtxt(testset_path, dtype=int).tolist()
+ids.sort(key=int)
 #ids = random.sample(ids, 100)
 viz_predicted_dir = dsroot + "/viz_flows_predicted"
 flows_predicted_dir = dsroot + "/flows_predicted"
