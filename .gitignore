@@ -6,7 +6,6 @@ models.zip
 dist
 datasets
 pytorch_env
-models
 build
 correlation.egg-info
-train.log
+*.log

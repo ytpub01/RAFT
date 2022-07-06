@@ -28,7 +28,7 @@ args.small = False
 args.gpus = [0, 1]
 args.iters = 12
 args.mixed_precision = False
-args.max_error = 100
+args.max_error = 25
 model = nn.DataParallel(RAFT(args), device_ids=args.gpus)
 state = torch.load(args.restore_ckpt)
 model.load_state_dict(state, strict=False)
@@ -65,11 +65,9 @@ with open("predict_stats.txt", 'w') as f:
             count += 1
         else:
             bad_ids.append(id_)
-        pixel_error = np.around(pixel_error, 2)
-        f.write(f"{id_} {pixel_error}\n")
+        f.write(f"{id_} {round(pixel_error, 2)}\n")
     pe_global /= count
-    pe_global = np.around(pe_global, 2)
-    f.write(f"{pe_global}\n")
+    f.write(f"{round(pe_global, 2)}\n")
     f.write(" ".join(str(item) for item in bad_ids))
-percent_bad = np.around(len(bad_ids)/len(ids)*100)
-print(f"Mean square error for validation set is {pe_global}, with {percent_bad} percent bad ids.")
+percent_bad = len(bad_ids)/len(ids)*100
+print(f"Mean square error for validation set is {pe_global}, with {round(percent_bad, 2)} percent bad ids.")
