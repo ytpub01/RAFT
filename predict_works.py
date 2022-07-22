@@ -3,6 +3,7 @@ root = "/home/ytaima/code/dl-autowarp"
 sys.path.insert(0, root)
 sys.path.insert(0, "core")
 
+import os.path as osp
 import torch
 import torch.nn as nn
 import tqdm as tq
@@ -12,7 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from easydict import EasyDict
 import viz_preds
-#from torchvision.transforms.functional import to_pil_image
+from torchvision.transforms.functional import to_pil_image
 
 dsroot = root + "/data/warpsds"
 args = EasyDict()
@@ -36,13 +37,17 @@ testset_path = dsroot + "/validation.txt"
 ids = np.loadtxt(testset_path, dtype=int).tolist()
 num_ids = len(ids)
 #ids = random.sample(ids, 100)
-#ids = [339] # To debug
-for id_ in tq.tqdm(range(num_ids), desc = "Processing...", leave=False):
-    satimage, snapshot, gt_flow, valid, panoid = testset[id_]
+#ids = [48510] # To debug, bad
+ids = [17226] # To debug, good
+#for idx in tq.tqdm(range(num_ids), desc = "Processing...", leave=False):
+for id_ in tq.tqdm(ids, desc = "Processing...", leave=False):
+    idx = testset.extra_info.index(id_)
+    satimage, snapshot, gt_flow, valid, panoid = testset[idx]
     panoid = panoid.item()
+    assert panoid == id_, "panoid from dataset and loop must be equal"
     # save file to debug
-    #satimage_2 = to_pil_image(satimage/255)
-    #satimage_2.save(root + "/14790_satimage_scr.jpg")
+    satimage_2 = to_pil_image(satimage/255)
+    satimage_2.save(osp.join(root, str(panoid)) + "_satimage_scr.jpg")
     _, pred_flow = model(image1=satimage[None].cuda(),
                                 image2=snapshot[None].cuda(),
                                 iters=args.iters, 
