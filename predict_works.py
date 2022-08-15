@@ -1,3 +1,4 @@
+import argparse
 import sys
 root = "/home/ytaima/code/dl-autowarp"
 sys.path.insert(0, root)
@@ -15,53 +16,58 @@ from easydict import EasyDict
 import viz_preds
 from torchvision.transforms.functional import to_pil_image
 
-dsroot = root + "/data/warpsds"
-args = EasyDict()
-args.stage = "asphere"
-args.restore_ckpt = root + "/ext/RAFT/models/raft-asphere.pth"
-args.image_size= (1056, 1056)
-args.batch_size = 2
-args.workers = 24
-args.small = False
-args.gpus = [0, 1]
-args.iters = 12
-args.mixed_precision = False
-model = nn.DataParallel(RAFT(args), device_ids=args.gpus)
-state = torch.load(args.restore_ckpt)
-model.load_state_dict(state, strict=False)
-torch.no_grad()
-model.cuda();
-model.eval();
-testset = datasets.AsphereWarp(split="validation", crop=args.image_size)
-testset_path = dsroot + "/validation.txt"
-ids = np.loadtxt(testset_path, dtype=int).tolist()
-num_ids = len(ids)
-#ids = random.sample(ids, 100)
-#ids = [48510] # To debug, bad
-ids = [17226] # To debug, good
-#for idx in tq.tqdm(range(num_ids), desc = "Processing...", leave=False):
-for id_ in tq.tqdm(ids, desc = "Processing...", leave=False):
-    idx = testset.extra_info.index(id_)
-    satimage, snapshot, gt_flow, valid, panoid = testset[idx]
-    panoid = panoid.item()
-    assert panoid == id_, "panoid from dataset and loop must be equal"
-    # save file to debug
-    satimage_2 = to_pil_image(satimage/255)
-    satimage_2.save(osp.join(root, str(panoid)) + "_satimage_scr.jpg")
-    _, pred_flow = model(image1=satimage[None].cuda(),
-                                image2=snapshot[None].cuda(),
-                                iters=args.iters, 
-                                test_mode=True)
-    pred_flow = pred_flow.squeeze(0).detach().cpu()
-    params = dict(id_=panoid, 
-              root="data/warpsds",
-              pred_flow=pred_flow.permute(1,2,0).numpy(),
-              gt_flow=gt_flow.permute(1,2,0).numpy(),
-              satimage=satimage.permute(1,2,0).to(torch.uint8).numpy(),
-              snapshot=snapshot.permute(1,2,0).to(torch.uint8).numpy())
+if __name__ == "__main__":
+    dsroot = root + "/data/warpsds"
+    parser =argparse.ArgumentParser()
+    parser.add_argument("--root", default=dsroot)
+    parser.add_argument("--stage", default="asphere")
+    parser.add_argument("--restore_ckpt", default=root + "/ext/RAFT/models/raft-asphere.pth")
+    parser.add_argument("--image_size", default=(1056, 1056))
+    parser.add_argument("--batch_size", default=2)
+    parser.add_argument("--workers", default=24)
+    parser.add_argument("--small", default=False)
+    parser.add_argument("--gpus", default=[0,1])
+    parser.add_argument("--iters", default=12)
+    parser.add_argument("--mixed_precision", default=False)
+    parser.add_argument("--split", default="ids-16k")
+    parser.add_argument('--id', nargs='+', type=int, help='ID of the pano', default=[])
+    args = parser.parse_args()
 
-    fig = viz_preds.plot_pts_id(**params);
-    plt.figure(fig.number)
-    viz_predicted_path = dsroot + f"/viz_preds/{panoid}-pts.png"
-    plt.savefig(viz_predicted_path)
-    plt.close("all")
+    model = nn.DataParallel(RAFT(args), device_ids=args.gpus)
+    state = torch.load(args.restore_ckpt)
+    model.load_state_dict(state, strict=False)
+    torch.no_grad()
+    model.cuda();
+    model.eval();
+    testset = datasets.AsphereWarp(root=args.root, split=args.split, crop=args.image_size)
+    ids = args.id
+    if len(ids) == 0:
+        testset_path = dsroot + f"/{args.split}.txt"
+        ids = np.loadtxt(testset_path, dtype=int).tolist()
+    num_ids = len(ids)
+    for id_ in tq.tqdm(ids, desc = "Processing...", leave=False):
+        idx = testset.extra_info.index(id_)
+        satimage, snapshot, gt_flow, valid, panoid = testset[idx]
+        panoid = panoid.item()
+        assert panoid == id_, "panoid from dataset and loop must be equal"
+        # save file to debug
+        # satimage_2 = to_pil_image(satimage/255)
+        # satimage_2.save(osp.join(root, str(panoid)) + "_satimage_scr.jpg")
+        _, pred_flow = model(image1=satimage[None].cuda(),
+                                    image2=snapshot[None].cuda(),
+                                    iters=args.iters, 
+                                    test_mode=True)
+        pred_flow = pred_flow.squeeze(0).detach().cpu()
+        
+        params = dict(id_=panoid, 
+                root="data/warpsds",
+                pred_flow=pred_flow.permute(1,2,0).numpy(),
+                gt_flow=gt_flow.permute(1,2,0).numpy(),
+                satimage=satimage.permute(1,2,0).to(torch.uint8).numpy(),
+                snapshot=snapshot.permute(1,2,0).to(torch.uint8).numpy())
+
+        fig = viz_preds.plot_pts_id(**params);
+        plt.figure(fig.number)
+        viz_predicted_path = dsroot + f"/viz_preds/{panoid}-pts.png"
+        plt.savefig(viz_predicted_path)
+        plt.close("all")

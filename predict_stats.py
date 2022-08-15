@@ -12,6 +12,8 @@ import numpy as np
 from easydict import EasyDict
 from utils.utils import center_crop
 import csv
+import os.path as osp
+from lib.flow_utils import visualize_flow_file, write_flow
 
 dsroot = root + "/data/warpsds"
 args = EasyDict()
@@ -49,6 +51,8 @@ for id_ in tq.tqdm(range(num_ids), desc = "Processing...", leave=False):
     pred_flow = pred_flow.squeeze(0).detach().cpu()
     pred_flow = pred_flow.permute(1,2,0).numpy()
     gt_flow = gt_flow.permute(1,2,0).numpy()
+    pred_flow_path = osp.join(dsroot, "flows_predicted", f"{id_}.flo")
+    #write_flow(pred_flow, pred_flow_path)
     assert pred_flow.shape[2] == 2, "u, v channels must be last"
     assert gt_flow.shape[2] == 2, "u, v channels must be last"
     crop = pred_flow.shape[:2]

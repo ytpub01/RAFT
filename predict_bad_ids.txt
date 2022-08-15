@@ -1,1 +1,0 @@
-panoid	pixel_error	gt_flow_u_min	gt_flow_v_min	gt_flow_u_mean	gt_flow_v_mean	gt_flow_mag_min	gt_flow_mag_max	gt_flow_mag_mean
