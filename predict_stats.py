@@ -51,8 +51,8 @@ for id_ in tq.tqdm(range(num_ids), desc = "Processing...", leave=False):
     pred_flow = pred_flow.squeeze(0).detach().cpu()
     pred_flow = pred_flow.permute(1,2,0).numpy()
     gt_flow = gt_flow.permute(1,2,0).numpy()
-    pred_flow_path = osp.join(dsroot, "flows_predicted", f"{id_}.flo")
-    #write_flow(pred_flow, pred_flow_path)
+    pred_flow_path = osp.join(dsroot, "flows_predicted", f"{panoid}.flo")
+    write_flow(pred_flow_path, pred_flow)
     assert pred_flow.shape[2] == 2, "u, v channels must be last"
     assert gt_flow.shape[2] == 2, "u, v channels must be last"
     crop = pred_flow.shape[:2]
@@ -78,5 +78,5 @@ with open("predict_stats.txt", 'w') as f:
                                "gt_flow_mag_min\tgt_flow_mag_max\tgt_flow_mag_mean\n")
     for k, v in ids_dict.items():
         f.write(str(k) + '\t' + "\t".join([str(val) for val in v])+'\n')
-result=f"Mean square error for validation set is {pe_global:.2f}, with {percent_bad:.2f} percent bad ids."
+result=f"Mean square error for the {num_ids} validation set is {pe_global:.2f}, with {percent_bad:.2f} percent bad ids."
 print(result)
