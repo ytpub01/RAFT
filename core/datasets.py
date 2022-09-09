@@ -22,6 +22,7 @@ class FlowDataset(data.Dataset):
         self.init_seed = False
         self.flow_list = []
         self.image_list = []
+        self.mask_list = []
         self.extra_info = []
 
     def __getitem__(self, index):
@@ -54,14 +55,14 @@ class FlowDataset(data.Dataset):
         else:
             img1 = img1[..., :3]
             img2 = img2[..., :3]
-        if self.augmentor is not None:
-            id_ = self.image_list[index][0].split('/')[-1].split('.')[0]
+        if not self.is_test and self.augmentor is not None:
             try:
                 if self.sparse:
                     img1, img2, flow, valid = self.augmentor(img1, img2, flow, valid)
                 else:
                     img1, img2, flow = self.augmentor(img1, img2, flow)
             except Exception as e:
+                id_ = self.image_list[index][0].split('/')[-1].split('.')[0]
                 print(f"Skipping id {id_} with image size {img1.shape} due to an error {e} : {traceback.format_exc()}")
                 raise
         img1 = torch.from_numpy(img1).permute(2, 0, 1).float()
@@ -93,15 +94,16 @@ class AsphereWarp(FlowDataset):
         TODO: Fix augmentor to get rid of nonconfigurable/magic parameters and remove 'crop' argument. 
         """
         super(AsphereWarp, self).__init__(aug_params, sparse=True)
-        ids = np.loadtxt(osp.join(root, f"{split}.txt"), dtype=str)
-        flows = [osp.join(root, "flows", f"{id}.flo") for id in ids]
-        sat_images = [osp.join(root, "satimages", f"{id}.png") for id in ids]
-        snap_images = [osp.join(root, "snapshots", f"{id}.png") for id in ids]
-        masks = [osp.join(root, "masks", f"{id}.npz") for id in ids]
         if split == 'test':
             self.is_test = True
-        self.flow_list += flows
-        self.mask_list = masks
+        ids = np.loadtxt(osp.join(root, f"{split}.txt"), dtype=str)
+        if not self.is_test:
+            flows = [osp.join(root, "flows", f"{id}.flo") for id in ids]
+            masks = [osp.join(root, "masks", f"{id}.npz") for id in ids]
+            self.flow_list += flows
+            self.mask_list += masks
+        sat_images = [osp.join(root, "satimages", f"{id}.png") for id in ids]
+        snap_images = [osp.join(root, "snapshots", f"{id}.png") for id in ids]
         self.image_list += list(zip(sat_images, snap_images))
         self.crop = crop        
         for img1 in sat_images:
@@ -116,16 +118,23 @@ class AsphereWarp(FlowDataset):
             valid = None
         return flow, valid
     def __getitem__(self, index):
-        img1, img2, flo, valid, extra_info = super().__getitem__(index)
+        if self.is_test:
+            img1, img2, extra_info = super().__getitem__(index)
+        else:
+            img1, img2, flo, valid, extra_info = super().__getitem__(index)
         if self.crop:
-            # apply center_crop for each! i0, j0 are different as images are different sizes
+            # apply center_crop
             img1 = center_crop(img1, self.crop)
             img2 = center_crop(img2, self.crop)
-            flo = center_crop(flo, self.crop)
-            valid = center_crop(valid, self.crop)
-            # Make sure that the U and V components of the flow are finite
-        valid = valid * (torch.isfinite(flo[..., 0, :, :]) & torch.isfinite(flo[...,1,:,:]))
-        return img1, img2, flo, valid, extra_info
+            if not self.is_test:
+                flo = center_crop(flo, self.crop)
+                valid = center_crop(valid, self.crop)
+                # Make sure that the U and V components of the flow are finite
+                valid = valid * (torch.isfinite(flo[..., 0, :, :]) & torch.isfinite(flo[...,1,:,:]))
+        if self.is_test:
+            return img1, img2, extra_info
+        else:
+            return img1, img2, flo, valid, extra_info
 
 def fetch_dataloader(args):
     """ Create the data loader for the corresponding training set """
