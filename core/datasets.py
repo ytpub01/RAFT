@@ -33,7 +33,7 @@ class FlowDataset(data.Dataset):
             img2 = np.array(img2).astype(np.uint8)[..., :3]
             img1 = torch.from_numpy(img1).permute(2, 0, 1).float()
             img2 = torch.from_numpy(img2).permute(2, 0, 1).float()
-            return img1, img2, torch.tensor(self.extra_info[index])
+            return img1, img2, self.extra_info[index]
         if not self.init_seed:
             worker_info = torch.utils.data.get_worker_info()
             if worker_info is not None:
@@ -107,7 +107,7 @@ class AsphereWarp(FlowDataset):
         self.image_list += list(zip(sat_images, snap_images))
         self.crop = crop        
         for img1 in sat_images:
-            frame_id = int((img1.split('/')[-1]).split('.')[0])
+            frame_id = (img1.split('/')[-1]).split('.')[0]
             self.extra_info.append(frame_id)
 
     def read_flow(self, index, sparse=False):
