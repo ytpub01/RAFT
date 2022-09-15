@@ -2,7 +2,7 @@ import sys
 import torch
 import torch.nn as nn
 import tqdm as tq
-import datasets
+from core.datasets import AsphereWarp
 from raft import RAFT
 import numpy as np
 from easydict import EasyDict
@@ -12,10 +12,12 @@ from lib.flow_utils import visualize_flow_file, write_flow
 
 root = osp.join("home", "ytaima", "code", "dl-autowarp")
 sys.path.insert(0, root)
-sys.path.insert(0, "core")
-dsroot = osp.join(root, "data", "warpsds")
+#sys.path.insert(0, "core")
+
 args = EasyDict()
+args.dsroot = osp.join(root, "data", "warpsds")
 args.stage = "asphere"
+args.split = "validation"
 args.restore_ckpt = osp.join(root, "ext", "RAFT", "models", "raft-asphere.pth")
 args.image_size= (1056, 1056)
 args.batch_size = 2
@@ -31,17 +33,15 @@ model.load_state_dict(state, strict=False)
 torch.no_grad()
 model.cuda();
 model.eval();
-testset = datasets.AsphereWarp(split="validation", crop=args.image_size)
-testset_path = osp.join(dsroot, "validation.txt")
+testset = AsphereWarp(root=args.root, split=args.split, crop=args.image_size)
+testset_path = osp.join(args.dsroot, "validation.txt")
 ids = np.loadtxt(testset_path, dtype=int).tolist()
 num_ids = len(ids)
 pe_global = 0
 count = 0
 ids_dict = {}
- 
 for id_ in tq.tqdm(range(num_ids), desc = "Processing...", leave=False):
     satimage, snapshot, gt_flow, valid, panoid = testset[id_]
-    panoid = panoid.item()
     _, pred_flow = model(image1=satimage[None].cuda(),
                                 image2=snapshot[None].cuda(),
                                 iters=args.iters, 
@@ -49,7 +49,7 @@ for id_ in tq.tqdm(range(num_ids), desc = "Processing...", leave=False):
     pred_flow = pred_flow.squeeze(0).detach().cpu()
     pred_flow = pred_flow.permute(1,2,0).numpy()
     gt_flow = gt_flow.permute(1,2,0).numpy()
-    pred_flow_path = osp.join(dsroot, "flows_predicted", f"{panoid}.flo")
+    pred_flow_path = osp.join(args.dsroot, "flows_predicted", f"{panoid}.flo")
     write_flow(pred_flow_path, pred_flow)
     assert pred_flow.shape[2] == 2, "u, v channels must be last"
     assert gt_flow.shape[2] == 2, "u, v channels must be last"

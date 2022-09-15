@@ -1,10 +1,10 @@
 import argparse
 import sys
-root = "/home/ytaima/code/dl-autowarp"
-sys.path.insert(0, root)
-sys.path.insert(0, "core")
-
 import os.path as osp
+root = osp.join("home", "ytaima", "code", "dl-autowarp")
+sys.path.insert(0, root)
+#sys.path.insert(0, "core")
+
 import torch
 import torch.nn as nn
 import tqdm as tq
@@ -14,6 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from easydict import EasyDict
 from lib.viz_utils import plot_pts_id
+from core.datasets import AsphereWarp
 from torchvision.transforms.functional import to_pil_image
 
 if __name__ == "__main__":
@@ -21,7 +22,7 @@ if __name__ == "__main__":
     parser =argparse.ArgumentParser()
     parser.add_argument("--root", default=dsroot)
     parser.add_argument("--stage", default="asphere")
-    parser.add_argument("--restore_ckpt", default=root + "/ext/RAFT/models/raft-asphere.pth")
+    parser.add_argument("--restore_ckpt", default=osp.join(root, "ext", "RAFT", "model", "raft-asphere.pth"))
     parser.add_argument("--image_size", default=(1056, 1056))
     parser.add_argument("--batch_size", default=2)
     parser.add_argument("--workers", default=24)
@@ -39,7 +40,7 @@ if __name__ == "__main__":
     torch.no_grad()
     model.cuda();
     model.eval();
-    testset = datasets.AsphereWarp(root=args.root, split=args.split, crop=args.image_size)
+    testset = AsphereWarp(root=args.root, split=args.split, crop=args.image_size)
     ids = args.id
     if len(ids) == 0:
         testset_path = osp.join(dsroot, f"{args.split}.txt")
@@ -58,13 +59,11 @@ if __name__ == "__main__":
                                     test_mode=True)
         pred_flow = pred_flow.squeeze(0).detach().cpu()       
         viz_predicted_path = osp.join(dsroot, "viz_preds", f"{panoid}-pts.png")
-        params = dict(id_=panoid, 
-                root=osp.join("data", "warpsds"),
+        params = dict(id_=panoid,
                 pred_flow=pred_flow.permute(1,2,0).numpy(),
                 gt_flow=gt_flow.permute(1,2,0).numpy(),
                 satimage=satimage.permute(1,2,0).to(torch.uint8).numpy(),
-                snapshot=snapshot.permute(1,2,0).to(torch.uint8).numpy(),
-                pts_file=viz_predicted_path)
-
+                snapshot=snapshot.permute(1,2,0).to(torch.uint8).numpy()
+                )
         fig = plot_pts_id(**params);
         plt.close("all")
