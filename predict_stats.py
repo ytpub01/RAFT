@@ -1,8 +1,4 @@
 import sys
-root = "/home/ytaima/code/dl-autowarp"
-sys.path.insert(0, root)
-sys.path.insert(0, "core")
-
 import torch
 import torch.nn as nn
 import tqdm as tq
@@ -11,14 +7,16 @@ from raft import RAFT
 import numpy as np
 from easydict import EasyDict
 from utils.utils import center_crop
-import csv
 import os.path as osp
 from lib.flow_utils import visualize_flow_file, write_flow
 
-dsroot = root + "/data/warpsds"
+root = osp.join("home", "ytaima", "code", "dl-autowarp")
+sys.path.insert(0, root)
+sys.path.insert(0, "core")
+dsroot = osp.join(root, "data", "warpsds")
 args = EasyDict()
 args.stage = "asphere"
-args.restore_ckpt = root + "/ext/RAFT/models/raft-asphere.pth"
+args.restore_ckpt = osp.join(root, "ext", "RAFT", "models", "raft-asphere.pth")
 args.image_size= (1056, 1056)
 args.batch_size = 2
 args.workers = 24
@@ -34,7 +32,7 @@ torch.no_grad()
 model.cuda();
 model.eval();
 testset = datasets.AsphereWarp(split="validation", crop=args.image_size)
-testset_path = dsroot + "/validation.txt"
+testset_path = osp.join(dsroot, "validation.txt")
 ids = np.loadtxt(testset_path, dtype=int).tolist()
 num_ids = len(ids)
 pe_global = 0

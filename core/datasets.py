@@ -72,7 +72,7 @@ class FlowDataset(data.Dataset):
             valid = torch.from_numpy(valid)
         else:
             valid = (flow[0].abs() < 1000) & (flow[1].abs() < 1000)
-        return img1, img2, flow, valid.float(), torch.tensor(self.extra_info[index])
+        return img1, img2, flow, valid.float(), self.extra_info[index]
 
     def __rmul__(self, v):
         self.flow_list = v * self.flow_list

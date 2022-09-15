@@ -83,6 +83,8 @@ class Logger:
         self.model.train(old_mode)
         for id in ids:
             if id not in self.points:
+                if id.find('_') > -1:
+                    id = id[:-3]
                 interleaved = np.loadtxt(f"/home/ytaima/warpsds/viz_preds/{id}-pts.txt")
                 sat_points = interleaved[::2]
                 
@@ -149,7 +151,8 @@ def train(args):
         for data_blob in loop:
             #Train Step
             optimizer.zero_grad()
-            image1, image2, flow, valid, extra_info = [x.cuda() for x in data_blob]
+            image1, image2, flow, valid, extra_info = [x for x in data_blob]
+            image1, image2, flow, valid  = image1.cuda(), image2.cuda(), flow.cuda(), valid.cuda()
             if args.add_noise:
                 stdv = np.random.uniform(0.0, 5.0)
                 image1 = (image1 + stdv * torch.randn(*image1.shape).cuda()).clamp(0.0, 255.0)
@@ -167,7 +170,10 @@ def train(args):
                 scaler.step(optimizer)
                 scheduler.step()
                 scaler.update()
-            loop.set_postfix({"L":loss.item(), "I1":extra_info[0].item(), "I2":extra_info[1].item()})
+            error = loss.item()
+            if error > 50:
+                tq.tqdm.write(f"Large error > 50: {error:.2f} for ids {extra_info[0]},{extra_info[1]}")
+            loop.set_postfix({"L":loss.item(), "im1":extra_info[0], "im2":extra_info[1]})
             logger.push(metrics, image1, image2, extra_info)
             # Validation 
             if total_steps % VAL_FREQ == VAL_FREQ - 1:
