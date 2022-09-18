@@ -7,7 +7,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 from raft import RAFT
 import evaluate
@@ -74,21 +73,6 @@ class Logger:
         self.points = {}
     
     @torch.no_grad()
-    def plot_examples(self):
-        assert self.examples is not None, "set examples before plotting them"
-        image1, image2, flow, valid, ids = [x.cuda() for x in self.examples]
-        old_mode = self.model.training
-        self.model.eval()
-        _, flow_predictions = self.model(image1, image2, iters=args.iters, test_mode=True)
-        self.model.train(old_mode)
-        for id in ids:
-            if id not in self.points:
-                if id.find('_') > -1:
-                    id = id[:-3]
-                interleaved = np.loadtxt(f"/home/ytaima/warpsds/viz_preds/{id}-pts.txt")
-                sat_points = interleaved[::2]
-                
-                # TODO: self.points[id] = 
 
     def _print_training_status(self, image1, image2, extra_info):
         training_str = "[{:6d}, lr={:10.7f}] ".format(self.total_steps+1, self.scheduler.get_last_lr()[0])
