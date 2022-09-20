@@ -8,7 +8,7 @@ import numpy as np
 from easydict import EasyDict
 from utils.utils import center_crop
 import os.path as osp
-from lib.flow_utils import visualize_flow_file, write_flow
+from lib.flow_utils import write_flow
 
 root = osp.join("home", "ytaima", "code", "dl-autowarp")
 sys.path.insert(0, root)

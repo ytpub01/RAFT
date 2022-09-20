@@ -8,6 +8,8 @@ import datasets
 from raft import RAFT
 import tqdm as tq
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 @torch.no_grad()
 def validate_asphere(model, iters=24):
     """ Perform evaluation on the ASphere (test) split """
@@ -17,7 +19,7 @@ def validate_asphere(model, iters=24):
     for i in tq.trange(len(val_dataset), desc="Validating"):
         #TODO - mask out the valid flow vectors
         image1, image2, flow_gt, valid, extra_info = val_dataset[i]
-        _, flow_pr = model(image1[None].cuda(), image2[None].cuda(), iters=iters, test_mode=True)
+        _, flow_pr = model(image1[None].to(DEVICE), image2[None].to(DEVICE), iters=iters, test_mode=True)
         epe = torch.sum((flow_pr[0].cpu() - flow_gt)**2, dim=0).sqrt()
         valid = (valid > 0.5).view(-1)
         epe = epe.view(-1)
@@ -37,7 +39,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     model = torch.nn.DataParallel(RAFT(args))
     model.load_state_dict(torch.load(args.model))
-    model.cuda()
+    model.to(DEVICE)
     model.eval()
     with torch.no_grad():
         if args.dataset == 'asphere':

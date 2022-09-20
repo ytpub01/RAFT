@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 from raft import RAFT
 import evaluate
@@ -18,6 +19,8 @@ import tqdm as tq
 MAX_FLOW = 400
 SUM_FREQ = 100
 VAL_FREQ = 5000
+
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def _safe_mean(a):
     """
@@ -118,7 +121,7 @@ def train(args):
     if args.restore_ckpt is not None:
         # also load state_dict for scheduler, optimizer and scaler
         model.load_state_dict(torch.load(args.restore_ckpt), strict=False)
-    model.cuda()
+    model.to(DEVICE)
     model.train()
     if args.freeze_bn:
         model.module.freeze_bn()
@@ -136,11 +139,11 @@ def train(args):
             #Train Step
             optimizer.zero_grad()
             image1, image2, flow, valid, extra_info = [x for x in data_blob]
-            image1, image2, flow, valid  = image1.cuda(), image2.cuda(), flow.cuda(), valid.cuda()
+            image1, image2, flow, valid  = image1.to(DEVICE), image2.to(DEVICE), flow.to(DEVICE), valid.to(DEVICE)
             if args.add_noise:
                 stdv = np.random.uniform(0.0, 5.0)
-                image1 = (image1 + stdv * torch.randn(*image1.shape).cuda()).clamp(0.0, 255.0)
-                image2 = (image2 + stdv * torch.randn(*image2.shape).cuda()).clamp(0.0, 255.0)
+                image1 = (image1 + stdv * torch.randn(*image1.shape).to(DEVICE)).clamp(0.0, 255.0)
+                image2 = (image2 + stdv * torch.randn(*image2.shape).to(DEVICE)).clamp(0.0, 255.0)
             flow_predictions = model(image1, image2, iters=args.iters)            
             loss, metrics = sequence_loss(flow_predictions, flow, valid, args.gamma)
             if torch.isnan(loss):
@@ -160,7 +163,7 @@ def train(args):
             loop.set_postfix({"L":loss.item(), "im1":extra_info[0], "im2":extra_info[1]})
             logger.push(metrics, image1, image2, extra_info)
             # Validation 
-            if total_steps % VAL_FREQ == VAL_FREQ - 1:
+            if total_steps % VAL_FREQ == 0:
                 PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
                 # TODO: save optimizer and scheduler, and scalar
                 torch.save(model.state_dict(), PATH)

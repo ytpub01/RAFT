@@ -1,28 +1,28 @@
 import argparse
 import sys
 import os.path as osp
+
 root = osp.join("home", "ytaima", "code", "dl-autowarp")
 sys.path.insert(0, root)
 #sys.path.insert(0, "core")
+from lib.flow_utils import write_flow
 
 import torch
 import torch.nn as nn
 import tqdm as tq
-import datasets
 from raft import RAFT
 import numpy as np
 import matplotlib.pyplot as plt
-from easydict import EasyDict
 from lib.viz_utils import plot_pts_id
 from core.datasets import AsphereWarp
-from torchvision.transforms.functional import to_pil_image
 
 if __name__ == "__main__":
     dsroot = osp.join(root, "data", "warpsds")
+    ckpt_path = osp.join(root, "ext", "RAFT", "model", "raft-asphere.pth")
     parser =argparse.ArgumentParser()
     parser.add_argument("--root", default=dsroot)
     parser.add_argument("--stage", default="asphere")
-    parser.add_argument("--restore_ckpt", default=osp.join(root, "ext", "RAFT", "model", "raft-asphere.pth"))
+    parser.add_argument("--restore_ckpt", default=ckpt_path)
     parser.add_argument("--image_size", default=(1056, 1056))
     parser.add_argument("--batch_size", default=2)
     parser.add_argument("--workers", default=24)
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     parser.add_argument("--gpus", default=[0,1])
     parser.add_argument("--iters", default=12)
     parser.add_argument("--mixed_precision", default=False)
-    parser.add_argument("--split", default="ids-16k")
+    parser.add_argument("--split", default="training")
     parser.add_argument('--id', nargs='+', type=int, help='ID of the pano', default=[])
     args = parser.parse_args()
 
@@ -57,8 +57,9 @@ if __name__ == "__main__":
                                     image2=snapshot[None].cuda(),
                                     iters=args.iters, 
                                     test_mode=True)
-        pred_flow = pred_flow.squeeze(0).detach().cpu()       
-        viz_predicted_path = osp.join(dsroot, "viz_preds", f"{panoid}-pts.png")
+        pred_flow = pred_flow.squeeze(0).detach().cpu()
+        pred_flow_path = osp.join(args.dsroot, "flows_predicted", f"{panoid}.flo")
+        write_flow(pred_flow_path, pred_flow)
         params = dict(id_=panoid,
                 pred_flow=pred_flow.permute(1,2,0).numpy(),
                 gt_flow=gt_flow.permute(1,2,0).numpy(),
@@ -66,4 +67,3 @@ if __name__ == "__main__":
                 snapshot=snapshot.permute(1,2,0).to(torch.uint8).numpy()
                 )
         fig = plot_pts_id(**params);
-        plt.close("all")
