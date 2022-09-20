@@ -20,7 +20,7 @@ MAX_FLOW = 400
 SUM_FREQ = 100
 VAL_FREQ = 5000
 
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def _safe_mean(a):
     """
@@ -163,13 +163,18 @@ def train(args):
             loop.set_postfix({"L":loss.item(), "im1":extra_info[0], "im2":extra_info[1]})
             logger.push(metrics, image1, image2, extra_info)
             # Validation 
-            if total_steps % VAL_FREQ == 0:
+            if total_steps % VAL_FREQ == VAL_FREQ - 1:
                 PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
                 # TODO: save optimizer and scheduler, and scalar
-                torch.save(model.state_dict(), PATH)
+                if DEVICE == torch.device("cuda"):
+                    torch.save(model.module.state_dict(), PATH)
+                elif DEVICE == torch.device("cpu"):
+                    torch.save(model.state_dict(), PATH)
+                else:
+                    tq.tqdm.write("ERROR: Could not save model state")
                 results = {}
                 for val_dataset in args.validation:
-                    if val_dataset == 'asphere':
+                    if val_dataset == "asphere":
                         results.update(evaluate.validate_asphere(model.module))
                 logger.write_dict(results)            
                 model.train()
@@ -183,7 +188,12 @@ def train(args):
     total_progress.close()
     logger.close()
     PATH = 'checkpoints/%s.pth' % args.name
-    torch.save(model.state_dict(), PATH)
+    if DEVICE == torch.device("cuda"):
+        torch.save(model.module.state_dict(), PATH)
+    elif DEVICE == torch.device("cpu"):
+        torch.save(model.state_dict(), PATH)
+    else:
+        tq.tqdm.write("ERROR: Could not save model state")
     return PATH
 
 if __name__ == '__main__':

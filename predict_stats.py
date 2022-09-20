@@ -1,59 +1,56 @@
 import sys
+root = "/home/ytaima/code/dl-autowarp"
+sys.path.insert(0, root)
+sys.path.insert(0, "core")
+
 import torch
 import torch.nn as nn
 import tqdm as tq
-from core.datasets import AsphereWarp
+import datasets
 from raft import RAFT
 import numpy as np
 from easydict import EasyDict
 from utils.utils import center_crop
+import csv
 import os.path as osp
-from os.path import abspath
-from lib.flow_utils import write_flow
-import gc
+from lib.flow_utils import visualize_flow_file, write_flow
 
-root = abspath(osp.join("..", ".."))
-sys.path.insert(0, root)
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+dsroot = root + "/data/warpsds"
 args = EasyDict()
-args.dsroot = osp.join(root, "data", "warpsds")
 args.stage = "asphere"
-args.split = "validation"
-args.restore_ckpt = osp.join(root, "ext", "RAFT", "models", "raft-asphere.pth")
-args.image_size= (1152, 1152)
+args.restore_ckpt = root + "/ext/RAFT/models/raft-asphere.pth"
+args.image_size= (1056, 1056)
 args.batch_size = 2
 args.workers = 24
 args.small = False
-args.iters = 24
+args.gpus = [0, 1]
+args.iters = 12
 args.mixed_precision = False
 args.max_error = 25
-model = nn.DataParallel(RAFT(args))
+model = nn.DataParallel(RAFT(args), device_ids=args.gpus)
 state = torch.load(args.restore_ckpt)
 model.load_state_dict(state, strict=False)
 torch.no_grad()
-model.to(DEVICE);
+model.cuda();
 model.eval();
-testset = AsphereWarp(root=args.dsroot, split=args.split, crop=args.image_size)
-testset_path = osp.join(args.dsroot, "validation.txt")
+testset = datasets.AsphereWarp(split="validation", crop=args.image_size)
+testset_path = dsroot + "/validation.txt"
 ids = np.loadtxt(testset_path, dtype=int).tolist()
 num_ids = len(ids)
 pe_global = 0
 count = 0
 ids_dict = {}
+ 
 for id_ in tq.tqdm(range(num_ids), desc = "Processing...", leave=False):
     satimage, snapshot, gt_flow, valid, panoid = testset[id_]
-    snapshot_cuda = satimage[None].to(DEVICE)
-    satimage_cuda = snapshot[None].to(DEVICE)
-    a, pred_flow = model(image1=satimage_cuda,
-                                image2=snapshot_cuda,
+    _, pred_flow = model(image1=satimage[None].cuda(),
+                                image2=snapshot[None].cuda(),
                                 iters=args.iters, 
                                 test_mode=True)
     pred_flow = pred_flow.squeeze(0).detach().cpu()
     pred_flow = pred_flow.permute(1,2,0).numpy()
     gt_flow = gt_flow.permute(1,2,0).numpy()
-    pred_flow_path = osp.join(args.dsroot, "flows_predicted", f"{panoid}.flo")
+    pred_flow_path = osp.join(dsroot, "flows_predicted", f"{panoid}.flo")
     write_flow(pred_flow_path, pred_flow)
     assert pred_flow.shape[2] == 2, "u, v channels must be last"
     assert gt_flow.shape[2] == 2, "u, v channels must be last"
@@ -73,12 +70,6 @@ for id_ in tq.tqdm(range(num_ids), desc = "Processing...", leave=False):
         count += 1
     ids_dict[panoid] = [pixel_error, gt_flow_u_min, gt_flow_v_min, gt_flow_u_mean, gt_flow_v_mean,
                             gt_flow_mag_min, gt_flow_mag_max, gt_flow_mag_mean]
-    del satimage_cuda
-    del snapshot_cuda
-    del a
-    del pred_flow
-    gc.collect()
-    torch.cuda.empty_cache()
 pe_global /= count
 percent_bad = (len(ids) - count)/len(ids)*100
 with open("predict_stats.txt", 'w') as f:
