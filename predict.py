@@ -1,8 +1,9 @@
 import argparse
 import sys
 import os.path as osp
+from os.path import abspath
 
-root = osp.join("home", "ytaima", "code", "dl-autowarp")
+root = abspath(osp.join("home", "ytaima", "code", "dl-autowarp"))
 sys.path.insert(0, root)
 #sys.path.insert(0, "core")
 from lib.flow_utils import write_flow
@@ -28,7 +29,7 @@ if __name__ == "__main__":
     parser.add_argument("--workers", default=24)
     parser.add_argument("--small", default=False)
     parser.add_argument("--gpus", default=[0,1])
-    parser.add_argument("--iters", default=12)
+    parser.add_argument("--iters", default=24)
     parser.add_argument("--mixed_precision", default=False)
     parser.add_argument("--split", default="training")
     parser.add_argument('--id', nargs='+', type=int, help='ID of the pano', default=[])

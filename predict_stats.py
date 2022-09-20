@@ -8,32 +8,34 @@ import numpy as np
 from easydict import EasyDict
 from utils.utils import center_crop
 import os.path as osp
+from os.path import abspath
 from lib.flow_utils import write_flow
+import gc
 
-root = osp.join("home", "ytaima", "code", "dl-autowarp")
+root = abspath(osp.join("..", ".."))
 sys.path.insert(0, root)
-#sys.path.insert(0, "core")
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 args = EasyDict()
 args.dsroot = osp.join(root, "data", "warpsds")
 args.stage = "asphere"
 args.split = "validation"
 args.restore_ckpt = osp.join(root, "ext", "RAFT", "models", "raft-asphere.pth")
-args.image_size= (1056, 1056)
+args.image_size= (1152, 1152)
 args.batch_size = 2
 args.workers = 24
 args.small = False
-args.gpus = [0, 1]
-args.iters = 12
+args.iters = 24
 args.mixed_precision = False
 args.max_error = 25
-model = nn.DataParallel(RAFT(args), device_ids=args.gpus)
+model = nn.DataParallel(RAFT(args))
 state = torch.load(args.restore_ckpt)
 model.load_state_dict(state, strict=False)
 torch.no_grad()
-model.cuda();
+model.to(DEVICE);
 model.eval();
-testset = AsphereWarp(root=args.root, split=args.split, crop=args.image_size)
+testset = AsphereWarp(root=args.dsroot, split=args.split, crop=args.image_size)
 testset_path = osp.join(args.dsroot, "validation.txt")
 ids = np.loadtxt(testset_path, dtype=int).tolist()
 num_ids = len(ids)
@@ -42,8 +44,10 @@ count = 0
 ids_dict = {}
 for id_ in tq.tqdm(range(num_ids), desc = "Processing...", leave=False):
     satimage, snapshot, gt_flow, valid, panoid = testset[id_]
-    _, pred_flow = model(image1=satimage[None].cuda(),
-                                image2=snapshot[None].cuda(),
+    snapshot_cuda = satimage[None].to(DEVICE)
+    satimage_cuda = snapshot[None].to(DEVICE)
+    a, pred_flow = model(image1=satimage_cuda,
+                                image2=snapshot_cuda,
                                 iters=args.iters, 
                                 test_mode=True)
     pred_flow = pred_flow.squeeze(0).detach().cpu()
@@ -69,6 +73,12 @@ for id_ in tq.tqdm(range(num_ids), desc = "Processing...", leave=False):
         count += 1
     ids_dict[panoid] = [pixel_error, gt_flow_u_min, gt_flow_v_min, gt_flow_u_mean, gt_flow_v_mean,
                             gt_flow_mag_min, gt_flow_mag_max, gt_flow_mag_mean]
+    del satimage_cuda
+    del snapshot_cuda
+    del a
+    del pred_flow
+    gc.collect()
+    torch.cuda.empty_cache()
 pe_global /= count
 percent_bad = (len(ids) - count)/len(ids)*100
 with open("predict_stats.txt", 'w') as f:
