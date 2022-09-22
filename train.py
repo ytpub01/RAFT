@@ -20,7 +20,7 @@ MAX_FLOW = 400
 SUM_FREQ = 100
 VAL_FREQ = 5000
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda")
 
 def _safe_mean(a):
     """
@@ -69,7 +69,7 @@ class Logger:
     def __init__(self, model, scheduler, examples=None):
         self.model = model
         self.scheduler = scheduler
-        self.total_steps = 0
+        self.total_steps = 1
         self.running_loss = {}
         self.writer = None
         self.examples = examples
@@ -77,8 +77,8 @@ class Logger:
     
     @torch.no_grad()
 
-    def _print_training_status(self, image1, image2, extra_info):
-        training_str = "[{:6d}, lr={:10.7f}] ".format(self.total_steps+1, self.scheduler.get_last_lr()[0])
+    def _print_training_status(self):
+        training_str = "[{:6d}, lr={:10.7f}] ".format(self.total_steps, self.scheduler.get_last_lr()[0])
         metrics_str = ""
         for k, v in self.running_loss.items(): metrics_str += f' {k}={v/SUM_FREQ:<10.4f}'
         # print the training status
@@ -91,17 +91,17 @@ class Logger:
             self.writer.add_scalar(k, self.running_loss[k]/SUM_FREQ, self.total_steps)
             self.running_loss[k] = 0.0
 
-    def push(self, metrics, image1, image2, extra_info):
-        self.total_steps += 1
-
+    def push(self, metrics):
         for key in metrics:
             if key not in self.running_loss:
                 self.running_loss[key] = 0.0
             self.running_loss[key] += metrics[key]
-            
-        if self.total_steps % SUM_FREQ == SUM_FREQ-1:
-            self._print_training_status(image1, image2, extra_info)
+        result = self.running_loss['epe']/SUM_FREQ            
+        if self.total_steps > 0 and self.total_steps % SUM_FREQ == 0:
+            self._print_training_status()
             self.running_loss = {}
+        self.total_steps += 1
+        return result
 
     def write_dict(self, results):
         if self.writer is None:
@@ -118,23 +118,35 @@ def train(args):
     tq.tqdm.write(f"Training with:\nlr={args.lr}, batch_size={args.batch_size}, image_size={args.image_size}")
     tq.tqdm.write(f"")
     tq.tqdm.write("Parameter Count: %d" % count_parameters(model))
+    ckpt = None
     if args.restore_ckpt is not None:
+        ckpt = torch.load(args.restore_ckpt, map_location=DEVICE)
         # also load state_dict for scheduler, optimizer and scaler
-        model.load_state_dict(torch.load(args.restore_ckpt), strict=False)
+        if "model_state_dict" in ckpt:
+            model.module.load_state_dict(ckpt["model_state_dict"], strict=False)
+        else:
+            model.module.load_state_dict(ckpt, strict=False)
     model.to(DEVICE)
     model.train()
     if args.freeze_bn:
         model.module.freeze_bn()
-    train_loader = datasets.fetch_dataloader(args)
     optimizer, scheduler = fetch_optimizer(args, model)
-    total_steps = 0
     scaler = GradScaler(enabled=args.mixed_precision)
+    if ckpt is not None and "optimizer_state_dict" in ckpt:
+        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+    if ckpt is not None and "scheduler_state_dict" in ckpt:
+        scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+    if ckpt is not None and "scaler_state_dict" in ckpt:
+        scaler.load_state_dict(ckpt["scaler_state_dict"])
+    train_loader = datasets.fetch_dataloader(args)
     logger = Logger(model, scheduler)
-    total_progress = tq.tqdm(desc='Total', total=args.num_steps)
+    lowest_epe = float('inf')
+    total_steps = 1
+    total_progress = tq.tqdm(desc='Total', initial=1, total=args.num_steps)
     optimizer.step() # must execute before scheduler
     should_keep_training = True
     while should_keep_training:
-        loop = tq.tqdm(train_loader, desc="Training", leave=False)
+        loop = tq.tqdm(train_loader, initial=1, desc="Training", leave=False)
         for data_blob in loop:
             #Train Step
             optimizer.zero_grad()
@@ -158,20 +170,31 @@ def train(args):
                 scheduler.step()
                 scaler.update()
             error = loss.item()
-            if error > 50:
-                tq.tqdm.write(f"Large error > 50: {error:.2f} for ids {extra_info[0]},{extra_info[1]}")
-            loop.set_postfix({"L":loss.item(), "im1":extra_info[0], "im2":extra_info[1]})
-            logger.push(metrics, image1, image2, extra_info)
+            if error > 100:
+                tq.tqdm.write(f"Large error > 100: {error:.4f} for ids {extra_info[0]},{extra_info[1]}")
+            loop.set_postfix({"loss":loss.item(), "im1":extra_info[0], "im2":extra_info[1]})
+            epe = logger.push(metrics)
+            # Best model
+            if total_steps > 0 and total_steps % SUM_FREQ == 0:
+                if epe < lowest_epe:
+                    lowest_epe = epe
+                    PATH = f"checkpoints/best_{args.name}_{epe:.2f}_{total_steps}.pth"
+                    torch.save({"loss": epe,
+                                "model_state_dict": model.module.state_dict(),
+                                "optimizer_state_dict": optimizer.state_dict(),
+                                "scheduler": scheduler.state_dict(),
+                                "scaler": scaler.state_dict()}, PATH)
+                    tq.tqdm.write(f"At iteration {total_steps} saved best model with error {epe:.2f}")
+
             # Validation 
-            if total_steps % VAL_FREQ == VAL_FREQ - 1:
-                PATH = 'checkpoints/%d_%s.pth' % (total_steps+1, args.name)
-                # TODO: save optimizer and scheduler, and scalar
-                if DEVICE == torch.device("cuda"):
-                    torch.save(model.module.state_dict(), PATH)
-                elif DEVICE == torch.device("cpu"):
-                    torch.save(model.state_dict(), PATH)
-                else:
-                    tq.tqdm.write("ERROR: Could not save model state")
+            if total_steps > 0 and total_steps % VAL_FREQ == 0:
+                PATH = 'checkpoints/%d_%s.pth' % (total_steps, args.name)
+                # save optimizer and scheduler, and scaler
+                torch.save({"loss": epe,
+                            "model_state_dict": model.module.state_dict(),
+                            "optimizer_state_dict": optimizer.state_dict(),
+                            "scheduler": scheduler.state_dict(),
+                            "scaler": scaler.state_dict()}, PATH)
                 results = {}
                 for val_dataset in args.validation:
                     if val_dataset == "asphere":
@@ -188,12 +211,11 @@ def train(args):
     total_progress.close()
     logger.close()
     PATH = 'checkpoints/%s.pth' % args.name
-    if DEVICE == torch.device("cuda"):
-        torch.save(model.module.state_dict(), PATH)
-    elif DEVICE == torch.device("cpu"):
-        torch.save(model.state_dict(), PATH)
-    else:
-        tq.tqdm.write("ERROR: Could not save model state")
+    torch.save({"loss": epe,
+                "model_state_dict": model.module.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler": scheduler.state_dict(),
+                "scaler": scaler.state_dict()}, PATH)
     return PATH
 
 if __name__ == '__main__':
