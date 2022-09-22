@@ -172,13 +172,13 @@ def train(args):
             error = loss.item()
             if error > 100:
                 tq.tqdm.write(f"Large error > 100: {error:.4f} for ids {extra_info[0]},{extra_info[1]}")
-            loop.set_postfix({"loss":loss.item(), "im1":extra_info[0], "im2":extra_info[1]})
+            loop.set_postfix({"L":loss.item(), "im1":extra_info[0], "im2":extra_info[1]})
             epe = logger.push(metrics)
             # Best model
             if total_steps > 0 and total_steps % SUM_FREQ == 0:
                 if epe < lowest_epe:
                     lowest_epe = epe
-                    PATH = f"checkpoints/best_{args.name}_{epe:.2f}_{total_steps}.pth"
+                    PATH = f"checkpoints/{args.name}_best.pth"
                     torch.save({"loss": epe,
                                 "model_state_dict": model.module.state_dict(),
                                 "optimizer_state_dict": optimizer.state_dict(),
