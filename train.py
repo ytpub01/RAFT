@@ -117,7 +117,7 @@ def train(args):
     model = nn.DataParallel(RAFT(args), device_ids=args.gpus)
     tq.tqdm.write(f"Training with:\nlr={args.lr}, batch_size={args.batch_size}, image_size={args.image_size}")
     tq.tqdm.write(f"")
-    tq.tqdm.write("Parameter Count: %d" % count_parameters(model))
+    tq.tqdm.write("Model parameter Count: %d" % count_parameters(model))
     ckpt = None
     if args.restore_ckpt is not None:
         ckpt = torch.load(args.restore_ckpt, map_location=DEVICE)
@@ -142,12 +142,37 @@ def train(args):
     logger = Logger(model, scheduler)
     lowest_epe = float('inf')
     total_steps = 1
-    total_progress = tq.tqdm(desc='Total', initial=1, total=args.num_steps)
+    total_progress = tq.tqdm(desc='Total', total=args.num_steps)
     optimizer.step() # must execute before scheduler
     should_keep_training = True
     while should_keep_training:
-        loop = tq.tqdm(train_loader, initial=1, desc="Training", leave=False)
+        # First validation
+        if total_steps == 1:
+            results = {}
+            results.update(evaluate.validate_asphere(model.module))
+            logger.write_dict(results)            
+            model.train()
+            if args.freeze_bn:
+                model.module.freeze_bn()
+            total_progress.update(1)
+        loop = tq.tqdm(train_loader, desc="Training", initial=1, leave=False)
         for data_blob in loop:
+            # Validation step
+            if total_steps % VAL_FREQ == 0:
+                results = {}
+                result = evaluate.validate_asphere(model.module)
+                results.update(result)
+                PATH = 'checkpoints/%d_%s.pth' % (total_steps, args.name)
+                # save optimizer and scheduler, and scaler
+                torch.save({"loss": result["epe"],
+                            "model_state_dict": model.module.state_dict(),
+                            "optimizer_state_dict": optimizer.state_dict(),
+                            "scheduler": scheduler.state_dict(),
+                            "scaler": scaler.state_dict()}, PATH)
+                logger.write_dict(results)            
+                model.train()
+                if args.freeze_bn:
+                   model.module.freeze_bn()
             #Train Step
             optimizer.zero_grad()
             image1, image2, flow, valid, extra_info = [x for x in data_blob]
@@ -158,51 +183,29 @@ def train(args):
                 image2 = (image2 + stdv * torch.randn(*image2.shape).to(DEVICE)).clamp(0.0, 255.0)
             flow_predictions = model(image1, image2, iters=args.iters)            
             loss, metrics = sequence_loss(flow_predictions, flow, valid, args.gamma)
-            if torch.isnan(loss):
-                tq.tqdm.write("ERROR: Loss is NaN")
-            elif np.isnan(metrics['epe']):
-                tq.tqdm.write("ERROR: epe is NaN")
-            else:
-                scaler.scale(loss).backward()
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-                scaler.step(optimizer)
-                scheduler.step()
-                scaler.update()
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+            scaler.step(optimizer)
+            scheduler.step()
+            scaler.update()
             error = loss.item()
             if error > 100:
                 tq.tqdm.write(f"Large error > 100: {error:.4f} for ids {extra_info[0]},{extra_info[1]}")
             loop.set_postfix({"L":loss.item(), "im1":extra_info[0], "im2":extra_info[1]})
             epe = logger.push(metrics)
             # Best model
-            if total_steps > 0 and total_steps % SUM_FREQ == 0:
+            if total_steps % SUM_FREQ == 0:
                 if epe < lowest_epe:
                     lowest_epe = epe
-                    PATH = f"checkpoints/{args.name}_best.pth"
+                    PATH = f"checkpoints/{args.name}_best_{epe:.4f}_{total_steps}.pth"
                     torch.save({"loss": epe,
                                 "model_state_dict": model.module.state_dict(),
                                 "optimizer_state_dict": optimizer.state_dict(),
                                 "scheduler": scheduler.state_dict(),
                                 "scaler": scaler.state_dict()}, PATH)
-                    tq.tqdm.write(f"At iteration {total_steps} saved best model with error {epe:.2f}")
+                    tq.tqdm.write(f"At iteration {total_steps} saved best model with error {epe:.4f}")
 
-            # Validation 
-            if total_steps > 0 and total_steps % VAL_FREQ == 0:
-                PATH = 'checkpoints/%d_%s.pth' % (total_steps, args.name)
-                # save optimizer and scheduler, and scaler
-                torch.save({"loss": epe,
-                            "model_state_dict": model.module.state_dict(),
-                            "optimizer_state_dict": optimizer.state_dict(),
-                            "scheduler": scheduler.state_dict(),
-                            "scaler": scaler.state_dict()}, PATH)
-                results = {}
-                for val_dataset in args.validation:
-                    if val_dataset == "asphere":
-                        results.update(evaluate.validate_asphere(model.module))
-                logger.write_dict(results)            
-                model.train()
-                if args.freeze_bn:
-                   model.module.freeze_bn()
             total_steps += 1
             total_progress.update(1)
             if total_steps > args.num_steps:
@@ -221,16 +224,13 @@ def train(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', default='raft', help="name your experiment")
-    parser.add_argument('--freeze_bn', action='store_true', help="Prevent batch-normalization from updating during training") 
     parser.add_argument('--stage', help="determines which dataset to use for training") 
     parser.add_argument('--restore_ckpt', help="restore checkpoint")
     parser.add_argument('--small', action='store_true', help='use small model')
-    parser.add_argument('--validation', type=str, nargs='+')
-    parser.add_argument('--workers', type=int, help="the number of workers to load data", default=os.cpu_count())
     parser.add_argument('--lr', type=float, default=0.00002)
     parser.add_argument('--num_steps', type=int, default=100000)
     parser.add_argument('--batch_size', type=int, default=6)
-    parser.add_argument('--image_size', type=int, nargs='+', default=[512, 512])
+    parser.add_argument('--image_size', type=int, nargs='+', default=[1024, 1024])
     parser.add_argument('--gpus', type=int, nargs='+', default=[0,1])
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
     parser.add_argument('--iters', type=int, default=12)
@@ -240,6 +240,8 @@ if __name__ == '__main__':
     parser.add_argument('--dropout', type=float, default=0.0)
     parser.add_argument('--gamma', type=float, default=0.8, help='exponential weighting')
     parser.add_argument('--add_noise', action='store_true')
+    parser.add_argument('--freeze_bn', action='store_true', help="Prevent batch-normalization from updating during training") 
+    parser.add_argument('--workers', type=int, help="the number of workers to load data", default=os.cpu_count())
     args = parser.parse_args()
     torch.manual_seed(1234)
     np.random.seed(1234)

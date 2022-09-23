@@ -15,10 +15,10 @@ def validate_asphere(model, iters=24):
     """ Perform evaluation on the ASphere (test) split """
     model.eval()
     epe_list = []
-    val_dataset = datasets.AsphereWarp(split='validation', crop=(1200,1200))
+    val_dataset = datasets.AsphereWarp(split='validation', crop=(1152,1152))
     for i in tq.trange(len(val_dataset), desc="Validating"):
         #TODO - mask out the valid flow vectors
-        image1, image2, flow_gt, valid, extra_info = val_dataset[i]
+        image1, image2, flow_gt, valid, _ = val_dataset[i]
         _, flow_pr = model(image1[None].to(DEVICE), image2[None].to(DEVICE), iters=iters, test_mode=True)
         epe = torch.sum((flow_pr[0].cpu() - flow_gt)**2, dim=0).sqrt()
         valid = (valid > 0.5).view(-1)
@@ -26,7 +26,7 @@ def validate_asphere(model, iters=24):
         epe_list.append(epe[valid].numpy())
     epes = np.concatenate(epe_list)
     epe = np.mean(epes)
-    tq.tqdm.write(f"Validation ASphere EPE: {epe},  out of {len(epes)} measurments")
+    tq.tqdm.write(f"Validation ASphere EPE: {epe:.4f},  out of {len(epes)} measurments")
     return {'validation': epe}
 
 if __name__ == '__main__':

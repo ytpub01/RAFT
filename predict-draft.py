@@ -27,7 +27,7 @@ state = {k.replace("module.", ""):v for k, v in state0.items()}
 model.load_state_dict(state)
 model.cuda();
 model.eval();
-testset = datasets.AsphereWarp(split="validation", crop=(1200, 1200))
+testset = datasets.AsphereWarp(split="validation", crop=(1152, 1152))
 testset_path = dsroot + "/validation.txt"
 ids = np.loadtxt(testset_path, dtype=int).tolist()
 #ids = random.sample(ids, 100)
