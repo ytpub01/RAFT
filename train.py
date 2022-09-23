@@ -164,7 +164,7 @@ def train(args):
                 results.update(result)
                 PATH = 'checkpoints/%d_%s.pth' % (total_steps, args.name)
                 # save optimizer and scheduler, and scaler
-                torch.save({"loss": result["epe"],
+                torch.save({"loss": result["validation"],
                             "model_state_dict": model.module.state_dict(),
                             "optimizer_state_dict": optimizer.state_dict(),
                             "scheduler": scheduler.state_dict(),
