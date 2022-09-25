@@ -190,8 +190,8 @@ def train(args):
             scheduler.step()
             scaler.update()
             error = loss.item()
-            if error > 100:
-                tq.tqdm.write(f"Large error > 100: {error:.4f} for ids {extra_info[0]},{extra_info[1]}")
+            if error > 50:
+                tq.tqdm.write(f"Large error > 50: {error:.4f} for ids {extra_info[0]},{extra_info[1]}")
             loop.set_postfix({"L":loss.item(), "im1":extra_info[0], "im2":extra_info[1]})
             epe = logger.push(metrics)
             # Best model

@@ -87,7 +87,7 @@ class AsphereWarp(FlowDataset):
         """Dataset for ASphere flows
         Args:
             aug_params ([type], optional): Constructor arguments to Augmentor.
-            split (str, optional): Data split. Defaults to 'train'.
+            split (str, optional): Data split. Defaults to 'training'.
             root (str, optional): Root folder of the dataset. Defaults to 'data/asphere'.
             crop ([type], optional): The size to crop image to. Defaults to None.
         NOTE:  The 'crop' argument is done here after standard augmentation, but it shouldn't be. 
@@ -96,7 +96,7 @@ class AsphereWarp(FlowDataset):
         super(AsphereWarp, self).__init__(aug_params, sparse=True)
         if split == 'test':
             self.is_test = True
-        ids = np.loadtxt(osp.join(root, f"{split}.txt"), dtype=str)
+        ids = np.loadtxt(osp.join(root, f"{split}.txt"), ndmin=1, dtype=str).tolist()
         if not self.is_test:
             flows = [osp.join(root, "flows", f"{id}.flo") for id in ids]
             masks = [osp.join(root, "masks", f"{id}.npz") for id in ids]
