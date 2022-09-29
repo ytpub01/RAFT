@@ -105,7 +105,7 @@ class AsphereWarp(FlowDataset):
         sat_images = [osp.join(root, "satimages", f"{id}.png") for id in ids]
         snap_images = [osp.join(root, "snapshots", f"{id}.png") for id in ids]
         self.image_list += list(zip(sat_images, snap_images))
-        self.crop = crop        
+        self.crop = crop
         for img1 in sat_images:
             frame_id = (img1.split('/')[-1]).split('.')[0]
             self.extra_info.append(frame_id)
