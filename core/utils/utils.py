@@ -82,15 +82,15 @@ def upflow8(flow, mode='bilinear'):
 
 def center_crop(img, crop, channels_first=True):
     if channels_first:
-        i0 = (img.shape[-2]-crop[-2])//2 # i0 is the min row, i1 is max row
-        j0 = (img.shape[-1]-crop[-1])//2 # j0 is the min col, j1 is max col
-        i1 = i0 + crop[-2]
-        j1 = j0 + crop[-1]
+        i0 = max((img.shape[-2]-crop[-2])//2, 0) # i0 is the min row, i1 is max row
+        j0 = max((img.shape[-1]-crop[-1])//2, 0) # j0 is the min col, j1 is max col
+        i1 = min(i0 + crop[-2], img.shape[-2])
+        j1 = min(j0 + crop[-1], img.shape[-1])
         img = img[...,i0:i1,j0:j1]
     else:
-        i0 = (img.shape[0]-crop[0])//2 # i0 is the min row, i1 is max row
-        j0 = (img.shape[1]-crop[1])//2 # j0 is the min col, j1 is max col
-        i1 = i0 + crop[0]
-        j1 = j0 + crop[1]
+        i0 = max((img.shape[0]-crop[0])//2, 0) # i0 is the min row, i1 is max row
+        j0 = max((img.shape[1]-crop[1])//2, 0) # j0 is the min col, j1 is max col
+        i1 = min(i0 + crop[0], img.shape[0])
+        j1 = min(j0 + crop[1], img.shape[1])
         img = img[i0:i1,j0:j1]
     return img

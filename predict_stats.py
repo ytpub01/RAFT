@@ -1,4 +1,4 @@
-import sys
+import gc
 import os
 import os.path as osp
 import torch
@@ -23,11 +23,11 @@ args.small = False
 args.iters = 12
 args.mixed_precision = False
 args.max_error = 25
-#model = nn.DataParallel(RAFT(args), device_ids=args.gpus)
+#model = torch.nn.DataParallel(RAFT(args))
 model = RAFT(args)
 ckpt = torch.load(args.restore_ckpt, map_location=DEVICE)
 if "model_state_dict" in ckpt:
-    model.load_state_dict(ckpt["model_state_dict"])
+    model.load_state_dict(ckpt["model_state_dict"])  # use module. if Dataparallel
 else:
     model.load_state_dict(ckpt)
 torch.no_grad()
@@ -70,6 +70,11 @@ for id_ in tq.tqdm(range(num_ids), initial=1, desc = "Processing...", leave=Fals
         count += 1
     ids_dict[panoid] = [pixel_error, gt_flow_u_min, gt_flow_v_min, gt_flow_u_mean, gt_flow_v_mean,
                             gt_flow_mag_min, gt_flow_mag_max, gt_flow_mag_mean]
+    del satimage
+    del snapshot
+    del pred_flow
+    gc.collect()
+    torch.cuda.empty_cache()
 pe_global /= count
 percent_bad = (len(ids) - count)/len(ids)*100
 with open('predict_stats.txt', 'w') as f:
