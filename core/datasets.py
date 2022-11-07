@@ -83,7 +83,7 @@ class FlowDataset(data.Dataset):
         return len(self.image_list)
         
 class AsphereWarp(FlowDataset):
-    def __init__(self, aug_params=None, split='training', root='data/asphere', crop=None):
+    def __init__(self, aug_params=None, split='training', root='data/asphere', crop=None, sparse=True):
         """Dataset for ASphere flows
         Args:
             aug_params ([type], optional): Constructor arguments to Augmentor.
@@ -93,8 +93,8 @@ class AsphereWarp(FlowDataset):
         NOTE:  The 'crop' argument is done here after standard augmentation, but it shouldn't be. 
         TODO: Fix augmentor to get rid of nonconfigurable/magic parameters and remove 'crop' argument. 
         """
-        super(AsphereWarp, self).__init__(aug_params, sparse=True)
-        if split == 'test':
+        super(AsphereWarp, self).__init__(aug_params, sparse)
+        if split == 'test' or split == 'test_tiles':
             self.is_test = True
         ids = np.loadtxt(osp.join(root, f"{split}.txt"), ndmin=1, dtype=str).tolist()
         if not self.is_test:
