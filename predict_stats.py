@@ -7,7 +7,7 @@ import datasets
 from raft import RAFT
 import numpy as np
 from easydict import EasyDict
-from utils.utils import center_crop
+from lib.snapshot import center_crop
 from lib.flow_utils import write_flow
 
 root = osp.join(os.sep, 'home', os.getlogin(), 'code', 'dl-autowarp')

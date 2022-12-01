@@ -6,7 +6,7 @@ import random
 import os.path as osp
 import traceback
 from utils import frame_utils
-from utils.utils import center_crop
+from lib.snapshot import center_crop
 from utils.augmentor import FlowAugmentor, SparseFlowAugmentor
 
 class FlowDataset(data.Dataset):
