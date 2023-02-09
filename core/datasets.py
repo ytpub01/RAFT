@@ -5,8 +5,11 @@ import torch.utils.data as data
 import random
 import os.path as osp
 import traceback
-from utils import frame_utils
-from lib.snapshot import center_crop
+import os
+import sys
+sys.path.append(os.path.join(os.path.dirname( __file__ ), os.pardir))
+from utils.frame_utils import read_gen
+from utils.utils import center_crop
 from utils.augmentor import FlowAugmentor, SparseFlowAugmentor
 
 class FlowDataset(data.Dataset):
@@ -27,8 +30,8 @@ class FlowDataset(data.Dataset):
 
     def __getitem__(self, index):
         if self.is_test:
-            img1 = frame_utils.read_gen(self.image_list[index][0])
-            img2 = frame_utils.read_gen(self.image_list[index][1])
+            img1 = read_gen(self.image_list[index][0])
+            img2 = read_gen(self.image_list[index][1])
             img1 = np.array(img1).astype(np.uint8)[..., :3]
             img2 = np.array(img2).astype(np.uint8)[..., :3]
             img1 = torch.from_numpy(img1).permute(2, 0, 1).float()
@@ -43,8 +46,8 @@ class FlowDataset(data.Dataset):
                 self.init_seed = True
         index = index % len(self.image_list)
         flow, valid = self.read_flow(index, self.sparse)
-        img1 = frame_utils.read_gen(self.image_list[index][0])
-        img2 = frame_utils.read_gen(self.image_list[index][1])
+        img1 = read_gen(self.image_list[index][0])
+        img2 = read_gen(self.image_list[index][1])
         flow = np.array(flow).astype(np.float32)
         img1 = np.array(img1).astype(np.uint8)
         img2 = np.array(img2).astype(np.uint8)
@@ -111,9 +114,9 @@ class AsphereWarp(FlowDataset):
             self.extra_info.append(frame_id)
 
     def read_flow(self, index, sparse=False):
-        flow = frame_utils.read_gen(self.flow_list[index])
+        flow = read_gen(self.flow_list[index])
         if sparse:
-            valid = frame_utils.read_gen(self.mask_list[index])
+            valid = read_gen(self.mask_list[index])
         else:
             valid = None
         return flow, valid
