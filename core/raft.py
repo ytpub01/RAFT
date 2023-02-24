@@ -6,7 +6,7 @@ from extractor import BasicEncoder, SmallEncoder
 from corr import CorrBlock, AlternateCorrBlock
 from utils.utils import coords_grid, upflow8
 
-autocast = torch.cuda.amp.autocast
+autocast = torch.cuda.amp.autocast if torch.cuda.is_available() else torch.cpu.amp.autocast
 class RAFT(nn.Module):
     def __init__(self, args):
         super(RAFT, self).__init__()
